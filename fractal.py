@@ -13,9 +13,9 @@ class window:
         
     def checkOverlap(self,other):
         if self.r < other.r:
-            return self.high > other.low
+            return self.high >= other.low
         else:
-            return self.low < other.high
+            return self.low <= other.high
         
     def totalOverlap(self,other):
         return (self.high < other.high) and (other.low < self.low)
@@ -53,7 +53,7 @@ def getWindows(n,d,k,plotYN=True):
         windows.append(a)
         if plotYN:
             plot(a.r,n,'ro',a.low,n,'k<',
-            a.high,n,'k>',ms=15./x[1])
+            a.high,n,'k>',ms=15./sqrt(x[1]))
     return windows
 
 def plotRegions(d,k,nmax,plotYN=True):
@@ -63,8 +63,8 @@ def plotRegions(d,k,nmax,plotYN=True):
         windowSets.append(a)
     if plotYN:
         xlim(xmin=-0.1,xmax=1.1)
-        ylim(ymin=0,ymax=nmax+1)
-        show()
+        ylim(ymin=0,ymax=nmax+2)
+        # show()
 
 def main(d,k,nmax):
     # Define initial regions.
@@ -92,11 +92,32 @@ def main(d,k,nmax):
             if addBool:
                 regions.append(newWindow)
         regions.sort()
-        
-    print(len(regions))
-    plotRegions(d,k,nmax,True)
-    
-main(0.1,2,5)
-main(1,2,5)
-main(.3,1.5,5)
+        regionsCopy = regions
+        regionsCopy2 = regionsCopy
+        regions = []
+        for x in regionsCopy:
+            new = x
+            for y in regionsCopy2:
+                if not y.checkOverlap(new):
+                    continue
+                else:
+                    if y.den < new.den:
+                        new = x.merge(new)
+                    else:
+                        new = new.merge(x)
+            regions.append(new)
+        regions = set(regions)
+        regions = list(regions)
+                
+        print(len(regions))
+        plotRegions(d,k,nmax,True)
+        for a in regions:
+            plot(a.r,nmax+1,'ro',a.low,nmax+1,'k<',
+                a.high,nmax+1,'k>',ms=15./sqrt(a.den))
+        show()
+
+
+#main(0.1,2,5)
+#main(1,2,5)
+main(.35,1.5,8)
                 
