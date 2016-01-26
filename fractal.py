@@ -97,6 +97,12 @@ def integStepFxn(x,fxn):
     integral.pop()
     return integral    
     
+def integFractal(x,fractal):
+    fxn = []
+    for i in range(1,len(x)+1):
+        fxn.append(trapz(fractal[0:i],x[0:i]))
+    return fxn
+    
 def main(d,k,nmax):
     # Define initial regions: clean = no overlaps.
     cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
@@ -132,25 +138,26 @@ def main(d,k,nmax):
     xL = [x.low  for x in cleanRegions]
     xR = [x.high for x in cleanRegions]
     x, gradp = stepFxn(xL,xR,.0000001)
-    # plot(x,gradp)
+    plot(x,gradp)
     p = integStepFxn(x,gradp)
-    # plot(x,p)
-    # show()
+    plot(x,p)
+    plot(x,integFractal(x,p))
+    show()
     return p[-1]
-    
+
 n = []
 pressuresBigWindow = []
 pressuresSmallWindow = []
 pressuresQuickDecay = []
 
-for i in range(1,200,25):
+for i in range(150,151,25):
     n.append(i)
     pressuresBigWindow.append(main(.25,2,i))
     pressuresSmallWindow.append(main(.1,2,i))
     pressuresQuickDecay.append(main(.25,3,i))
 
-plot(n,pressuresBigWindow,'r',label='BigWindow')
-plot(n,pressuresSmallWindow,'g',label='SmallWindow')
-plot(n,pressuresQuickDecay,'b',label='QuickDecay')
-legend()
-show()
+# plot(n,pressuresBigWindow,'r',label='BigWindow')
+# plot(n,pressuresSmallWindow,'g',label='SmallWindow')
+# plot(n,pressuresQuickDecay,'b',label='QuickDecay')
+# legend()
+# show()
