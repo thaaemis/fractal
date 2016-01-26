@@ -11,27 +11,29 @@ class window:
     def __lt__(self,other):
         return self.r < other.r
         
-    def checkOverlap(self,other):
+    def getLowDen(self,list):
+        lowDen = min(x.den for x in list)
+        lowWindow = (y for y in list if y.den == lowDen)
+        return min(lowWindow)
+        
+    def overlap(self,other):
         if self.r < other.r:
             return self.high >= other.low
         else:
             return self.low <= other.high
-        
-    def totalOverlap(self,other):
-        return (self.high < other.high) and (other.low < self.low)
-        
-    def merge(self,other):
-        low = min(self.low,other.low)
-        high = max(self.high,other.high)
-        other.low = low
-        other.high = high
-        return other
+                
+    def merge(self,overlaps):
+        overlaps.append(self)
+        outWindow = self.getLowDen(overlaps)
+        outWindow.low = min(x.low for x in overlaps)
+        outWindow.high = max(x.high for x in overlaps)
+        return outWindow
         
     def printFrac(self):
         print self.num,"/",self.den
         
 
-def farey( n, asc=True ):
+def farey( n, asc=True ): # give all rationals for nth farey tree
     """Python function to print the nth Farey sequence, either ascending or descending."""
     row = set()
     if asc: 
@@ -45,79 +47,110 @@ def farey( n, asc=True ):
         row.add((a,b))
     return row
     
-def getWindows(n,d,k,plotYN=True):
-    rationals = farey(n)
-    windows = []
-    for x in rationals:
-        a = window(x[0],x[1],d,k)
-        windows.append(a)
-        if plotYN:
-            plot(a.r,n,'ro',a.low,n,'k<',
-            a.high,n,'k>',ms=15./sqrt(x[1]))
-    return windows
-
-def plotRegions(d,k,nmax,plotYN=True):
+def plotRegions(d,k,nmax,plotYN=True): # plot regions for each n
     windowSets = []
+    
+    def getWindows(n,d,k,plotYN=True):
+        rationals = farey(n)
+        windows = []
+        for x in rationals:
+            a = window(x[0],x[1],d,k)
+            windows.append(a)
+            if plotYN:
+                plot(a.r,n,'ro',a.low,n,'k<',
+                a.high,n,'k>',ms=15./sqrt(x[1]))
+        return windows
+    
     for n in range(1,nmax+1):
         a = getWindows(n,d,k,plotYN)
         windowSets.append(a)
     if plotYN:
         xlim(xmin=-0.1,xmax=1.1)
         ylim(ymin=0,ymax=nmax+2)
-        # show()
 
+def stepFxn(xL,xR,epsilon):
+    xL = xL[1:] # trim irrelevant start point
+    xR = xR[0:-1] #trim irrelevant end point
+    x, fxn = [0], [0]
+    for i in range(0,len(xR)):
+        # Stay zero
+        fxn.append(0)
+        x.append(xR[i]-epsilon)
+        # Jump to 1
+        fxn.append(1)
+        x.append(xR[i]+epsilon)
+        #Stay 1
+        fxn.append(1)
+        x.append(xL[i]-epsilon)
+        # Jump to 0
+        fxn.append(0)
+        x.append(xL[i]+epsilon)
+    x.append(1)
+    fxn.append(0)
+    return x,fxn
+
+def integStepFxn(x,fxn):
+    integral = [0]
+    for i in range(1,len(x),2):
+        integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
+        integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
+    integral.pop()
+    return integral    
+    
 def main(d,k,nmax):
-    # Define initial regions.
-    regions = [window(0,1,d,k),window(1,1,d,k)]
+    # Define initial regions: clean = no overlaps.
+    cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
     
     # Loop over levels of Farey tree from 2 until nmax:
     for n in range(2,nmax+1):
         # Compute new Farey rationals
         newregions = list(farey(n)-farey(n-1))
-        regionsCopy = regions
         # Check what to do with new window around this rational.
         for x in newregions:
-            addBool = True
+            # Set up new window with zero overlaps so far
             newWindow = window(x[0],x[1],d,k)
-            for y in regionsCopy:
-                if not newWindow.checkOverlap(y):
-                    continue
-                elif newWindow.totalOverlap(y):
-                    addBool = False
-                    break
+            # Remake old region list to iterate over
+            regionsMod = cleanRegions
+            cleanRegions, overlapRegions = [], []
+            for y in regionsMod:
+                if not newWindow.overlap(y):
+                    cleanRegions.append(y)
                 else:
-                    regions.remove(y)
-                    newWindow = newWindow.merge(y)
-                    break
-            if addBool:
-                regions.append(newWindow)
-        regions.sort()
-        regionsCopy = regions
-        regionsCopy2 = regionsCopy
-        regions = []
-        for x in regionsCopy:
-            new = x
-            for y in regionsCopy2:
-                if not y.checkOverlap(new):
-                    continue
-                else:
-                    if y.den < new.den:
-                        new = x.merge(new)
-                    else:
-                        new = new.merge(x)
-            regions.append(new)
-        regions = set(regions)
-        regions = list(regions)
-                
-        print(len(regions))
-        plotRegions(d,k,nmax,True)
-        for a in regions:
-            plot(a.r,nmax+1,'ro',a.low,nmax+1,'k<',
-                a.high,nmax+1,'k>',ms=15./sqrt(a.den))
-        show()
+                    overlapRegions.append(y)
+            if len(overlapRegions) == 0: # no overlaps
+                cleanRegions.append(newWindow)
+            else:
+                cleanRegions.append(newWindow.merge(overlapRegions))
+        cleanRegions.sort()
+        
+        # plotRegions(d,k,nmax,True)
+        # for a in cleanRegions:
+            # plot(a.r,nmax+1,'ro',a.low,nmax+1,'k<',
+                # a.high,nmax+1,'k>',ms=15./sqrt(a.den))
+        # show()
+    
+    xL = [x.low  for x in cleanRegions]
+    xR = [x.high for x in cleanRegions]
+    x, gradp = stepFxn(xL,xR,.0000001)
+    # plot(x,gradp)
+    p = integStepFxn(x,gradp)
+    # plot(x,p)
+    # show()
+    return p[-1]
+    
+n = []
+pressuresBigWindow = []
+pressuresSmallWindow = []
+pressuresQuickDecay = []
 
+for i in range(1,200,25):
+    n.append(i)
+    pressuresBigWindow.append(main(.25,2,i))
+    pressuresSmallWindow.append(main(.1,2,i))
+    pressuresQuickDecay.append(main(.25,3,i))
 
-#main(0.1,2,5)
-#main(1,2,5)
-main(.35,1.5,8)
-                
+plot(n,pressuresBigWindow,'r',label='BigWindow')
+plot(n,pressuresSmallWindow,'g',label='SmallWindow')
+plot(n,pressuresQuickDecay,'b',label='QuickDecay')
+legend()
+show()
