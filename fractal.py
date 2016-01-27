@@ -139,16 +139,18 @@ def main(d,k,nmax):
     xR = [x.high for x in cleanRegions]
     x, gradp = stepFxn(xL,xR,.0000001)
     plot(x,gradp)
+    show()
     p = integStepFxn(x,gradp)
     plot(x,p)
+    show()
     plot(x,integFractal(x,p))
     show()
     return p[-1]
 
 n = []
 pressuresBigWindow = []
-pressuresSmallWindow = []
 pressuresQuickDecay = []
+pressuresSmallWindow = []
 
 for i in range(150,151,25):
     n.append(i)
