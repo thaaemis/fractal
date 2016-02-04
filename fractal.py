@@ -103,7 +103,7 @@ def integFractal(x,fractal):
         fxn.append(trapz(fractal[0:i],x[0:i]))
     return fxn
     
-def main(d,k,nmax):
+def getP(d,k,nmax):
     # Define initial regions: clean = no overlaps.
     cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
     
@@ -138,25 +138,71 @@ def main(d,k,nmax):
     xL = [x.low  for x in cleanRegions]
     xR = [x.high for x in cleanRegions]
     x, gradp = stepFxn(xL,xR,.0000001)
-    plot(x,gradp)
-    show()
     p = integStepFxn(x,gradp)
-    plot(x,p)
-    show()
-    plot(x,integFractal(x,p))
-    show()
-    return p[-1]
+    return x, p, gradp
 
-n = []
-pressuresBigWindow = []
-pressuresQuickDecay = []
-pressuresSmallWindow = []
+def cylinderB(d,k,nmax,RKstep):
+    x, p, gradp = getP(d, k, nmax)
+    
+    p.reverse()
+    gradp.reverse()
+    
+    # for iota = r = Bz/Bth, make function for Bz' = ...
+    def f(iota, Bz, gradp):
+        return (-gradp/Bz - 2*iota*Bz)/(1+iota**2)
+    
+    # set initial conditions
+    Bz, iota, i = [2], [0], 0
+    
+    while iota[-1] <= 1:
+        # do RK4 method for solving for Bz(iota)
+        h = min([x[i+1]-x[i],RKstep])
+        iotaNow, BzNow = iota[-1], Bz[-1]
+        k1 = f(iotaNow,BzNow,gradp[i])
+        k2 = f(iotaNow+h/2,BzNow+h/2*k1,gradp[i])
+        k3 = f(iotaNow+h/2,BzNow+h/2*k2,gradp[i])
+        k4 = f(iotaNow+h,BzNow+h*k3,gradp[i])
+        iota.append(iotaNow+h)
+        Bz.append(BzNow+h/6*(k1+2*k2+2*k3+k4))
+        # Update counter if we pass an index for x, p, gradp
+        if iota[-1] >= x[i+1]:
+            try:
+                i = i+1
+                x[i+1]
+            except IndexError:
+                break
+        
+    return iota, Bz, x, p, gradp
+    
+iota, Bz, x, p, gradp = cylinderB(.2,2,100,0.00001)
+plot(iota,Bz)
+iota, Bz, x, p, gradp = cylinderB(.2,3,100,0.00001)
+plot(iota,Bz)
+iota, Bz, x, p, gradp = cylinderB(.2,1.8,100,0.00001)
+plot(iota,Bz)
+iota, Bz, x, p, gradp = cylinderB(.2,1.8,160,0.00001)
+plot(iota,Bz)
 
-for i in range(150,151,25):
-    n.append(i)
-    pressuresBigWindow.append(main(.25,2,i))
-    pressuresSmallWindow.append(main(.1,2,i))
-    pressuresQuickDecay.append(main(.25,3,i))
+
+
+
+dBzdr = []
+for i in range(1,len(Bz)-1):
+    dBzdr.append((Bz[i+1]-Bz[i-1])/(iota[i+1]-iota[i-1]))
+#plot(iota[1:-1],dBzdr)
+show()
+
+# Plot saturation of p as Farey tree saturates
+# n = []
+# pressuresBigWindow = []
+# pressuresQuickDecay = []
+# pressuresSmallWindow = []
+
+# for i in range(150,151,25):
+    # n.append(i)
+    # pressuresBigWindow.append(main(.25,2,i))
+    # pressuresSmallWindow.append(main(.1,2,i))
+    # pressuresQuickDecay.append(main(.25,3,i))
 
 # plot(n,pressuresBigWindow,'r',label='BigWindow')
 # plot(n,pressuresSmallWindow,'g',label='SmallWindow')
