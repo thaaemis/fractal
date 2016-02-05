@@ -1,4 +1,5 @@
 from pylab import *
+import numpy as np
 
 class window:
     def __init__(self,n,m,d,k):
@@ -28,10 +29,6 @@ class window:
         outWindow.low = min(x.low for x in overlaps)
         outWindow.high = max(x.high for x in overlaps)
         return outWindow
-        
-    def printFrac(self):
-        print self.num,"/",self.den
-        
 
 def farey( n, asc=True ): # give all rationals for nth farey tree
     """Python function to print the nth Farey sequence, either ascending or descending."""
@@ -47,27 +44,6 @@ def farey( n, asc=True ): # give all rationals for nth farey tree
         row.add((a,b))
     return row
     
-def plotRegions(d,k,nmax,plotYN=True): # plot regions for each n
-    windowSets = []
-    
-    def getWindows(n,d,k,plotYN=True):
-        rationals = farey(n)
-        windows = []
-        for x in rationals:
-            a = window(x[0],x[1],d,k)
-            windows.append(a)
-            if plotYN:
-                plot(a.r,n,'ro',a.low,n,'k<',
-                a.high,n,'k>',ms=15./sqrt(x[1]))
-        return windows
-    
-    for n in range(1,nmax+1):
-        a = getWindows(n,d,k,plotYN)
-        windowSets.append(a)
-    if plotYN:
-        xlim(xmin=-0.1,xmax=1.1)
-        ylim(ymin=0,ymax=nmax+2)
-
 def stepFxn(xL,xR,epsilon):
     xL = xL[1:] # trim irrelevant start point
     xR = xR[0:-1] #trim irrelevant end point
@@ -103,6 +79,9 @@ def integFractal(x,fractal):
         fxn.append(trapz(fractal[0:i],x[0:i]))
     return fxn
     
+def deriv(y,x):
+    return np.gradient(y)/np.gradient(x)
+    
 def getP(d,k,nmax):
     # Define initial regions: clean = no overlaps.
     cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
@@ -129,17 +108,18 @@ def getP(d,k,nmax):
                 cleanRegions.append(newWindow.merge(overlapRegions))
         cleanRegions.sort()
         
-        # plotRegions(d,k,nmax,True)
         # for a in cleanRegions:
-            # plot(a.r,nmax+1,'ro',a.low,nmax+1,'k<',
-                # a.high,nmax+1,'k>',ms=15./sqrt(a.den))
-        # show()
+            # plot(a.r,n,'ro',a.low,n,'k<',
+                # a.high,n,'k>',ms=15./sqrt(a.den))    
+    # ylim(1,nmax+1)
+    # show()
     
     xL = [x.low  for x in cleanRegions]
     xR = [x.high for x in cleanRegions]
     x, gradp = stepFxn(xL,xR,.0000001)
     p = integStepFxn(x,gradp)
-    return x, p, gradp
+    # return x, p, gradp
+    return max(p)
 
 def cylinderB(d,k,nmax,RKstep):
     x, p, gradp = getP(d, k, nmax)
@@ -152,7 +132,7 @@ def cylinderB(d,k,nmax,RKstep):
         return (-gradp/Bz - 2*iota*Bz)/(1+iota**2)
     
     # set initial conditions
-    Bz, iota, i = [2], [0], 0
+    Bz, iota, i = [1], [0], 0
     
     while iota[-1] <= 1:
         # do RK4 method for solving for Bz(iota)
@@ -171,41 +151,71 @@ def cylinderB(d,k,nmax,RKstep):
                 x[i+1]
             except IndexError:
                 break
-        
-    return iota, Bz, x, p, gradp
     
-iota, Bz, x, p, gradp = cylinderB(.2,2,100,0.00001)
-plot(iota,Bz)
-iota, Bz, x, p, gradp = cylinderB(.2,3,100,0.00001)
-plot(iota,Bz)
-iota, Bz, x, p, gradp = cylinderB(.2,1.8,100,0.00001)
-plot(iota,Bz)
-iota, Bz, x, p, gradp = cylinderB(.2,1.8,160,0.00001)
-plot(iota,Bz)
+    iota = np.array(iota)
+    Bz = np.array(Bz)
+    Btheta = np.array(iota)*np.array(Bz)
+    Jtheta = -deriv(Bz,iota)
+    Jz = 1/iota*deriv(iota*Btheta,iota)
+    
+    return(iota.tolist(), Bz.tolist(), Btheta.tolist(), 
+           Jtheta.tolist(), Jz.tolist(), x, p, gradp)
+    
 
-
-
-
-dBzdr = []
-for i in range(1,len(Bz)-1):
-    dBzdr.append((Bz[i+1]-Bz[i-1])/(iota[i+1]-iota[i-1]))
-#plot(iota[1:-1],dBzdr)
-show()
-
-# Plot saturation of p as Farey tree saturates
-# n = []
-# pressuresBigWindow = []
-# pressuresQuickDecay = []
-# pressuresSmallWindow = []
-
-# for i in range(150,151,25):
-    # n.append(i)
-    # pressuresBigWindow.append(main(.25,2,i))
-    # pressuresSmallWindow.append(main(.1,2,i))
-    # pressuresQuickDecay.append(main(.25,3,i))
-
-# plot(n,pressuresBigWindow,'r',label='BigWindow')
-# plot(n,pressuresSmallWindow,'g',label='SmallWindow')
-# plot(n,pressuresQuickDecay,'b',label='QuickDecay')
-# legend()
+# params = [0.1,0.2,0.25]
+# params.sort(reverse=False)
+# fareyLevel = 200
+# for param in params:
+    # iota, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2,fareyLevel,0.00001)
+    # magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
+    # figure(1)
+    # subplot(211)
+    # plot(iota,Bz)
+    # subplot(212)
+    # plot(iota,Btheta)
+    # # subplot(313)
+    # # plot(iota,magB)
+    # figure(2)
+    # subplot(211)
+    # plot(iota,Jtheta)
+    # subplot(212)
+    # plot(iota,Jz)
+    # figure(3)
+    # plot(x,p)
+# figure(1)
+# subplot(211)
+# legend(['d = '+str(g) for g in params])
+# title('Bz(r)')
+# subplot(212)
+# title('Btheta(r)')
+# figure(2)
+# subplot(211)
+# legend(['d = '+str(g) for g in params])
+# title('Jtheta(r)')
+# subplot(212)
+# title('Jz(r)')
+# figure(3)
+# title('p(r)')
+# legend(['d = '+str(g) for g in params])
 # show()
+
+
+#Plot saturation of p as Farey tree saturates
+n = []
+pressuresBigWindow = []
+pressuresQuickDecay = []
+pressuresSmallWindow = []
+
+for i in range(10,201,10):
+    n.append(i)
+    pressuresBigWindow.append(getP(.25,2,i))
+    pressuresSmallWindow.append(getP(.1,2,i))
+    pressuresQuickDecay.append(getP(.25,3,i))
+
+plot(n,pressuresBigWindow,'r',label='d = 0.25, k = 2')
+plot(n,pressuresSmallWindow,'g',label='d = 0.1, k = 2')
+plot(n,pressuresQuickDecay,'b',label='d = 0.25, k = 3')
+legend()
+xlabel('Farey tree level')
+ylabel('Peak pressure')
+show()
