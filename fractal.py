@@ -1,77 +1,5 @@
 from pylab import *
 import numpy as np
-
-class window:
-    def __init__(self,n,m,d,k):
-        self.r = float(n)/float(m) # rational center
-        self.num = n # numerator
-        self.den = m # denominator
-        self.low  = (n * m**(k-1) - d)/m**k # excluded upper bound
-        self.high = (n * m**(k-1) + d)/m**k # excluded low bound
-        
-    def __lt__(self,other):
-        return self.r < other.r
-        
-    def getLowDen(self,list):
-        lowDen = min(x.den for x in list)
-        lowWindow = (y for y in list if y.den == lowDen)
-        return min(lowWindow)
-        
-    def overlap(self,other):
-        if self.r < other.r:
-            return self.high >= other.low
-        else:
-            return self.low <= other.high
-                
-    def merge(self,overlaps):
-        overlaps.append(self)
-        outWindow = self.getLowDen(overlaps)
-        outWindow.low = min(x.low for x in overlaps)
-        outWindow.high = max(x.high for x in overlaps)
-        return outWindow
-
-def farey( n, asc=True ): # give all rationals for nth farey tree
-    """Python function to print the nth Farey sequence, either ascending or descending."""
-    row = set()
-    if asc: 
-        a, b, c, d = 0, 1,  1 , n     # (*)
-    else:
-        a, b, c, d = 1, 1, n-1, n     # (*)
-    row.add((a,b))
-    while (asc and c <= n) or (not asc and a > 0):
-        k = int((n + b)/d)
-        a, b, c, d = c, d, k*c - a, k*d - b
-        row.add((a,b))
-    return row
-    
-def stepFxn(xL,xR,epsilon):
-    xL = xL[1:] # trim irrelevant start point
-    xR = xR[0:-1] #trim irrelevant end point
-    x, fxn = [0], [0]
-    for i in range(0,len(xR)):
-        # Stay zero
-        fxn.append(0)
-        x.append(xR[i]-epsilon)
-        # Jump to 1
-        fxn.append(1)
-        x.append(xR[i]+epsilon)
-        #Stay 1
-        fxn.append(1)
-        x.append(xL[i]-epsilon)
-        # Jump to 0
-        fxn.append(0)
-        x.append(xL[i]+epsilon)
-    x.append(1)
-    fxn.append(0)
-    return x,fxn
-
-def integStepFxn(x,fxn):
-    integral = [0]
-    for i in range(1,len(x),2):
-        integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
-        integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
-    integral.pop()
-    return integral    
     
 def integFractal(x,fractal):
     fxn = []
@@ -79,10 +7,80 @@ def integFractal(x,fractal):
         fxn.append(trapz(fractal[0:i],x[0:i]))
     return fxn
     
-def deriv(y,x):
-    return np.gradient(y)/np.gradient(x)
-    
 def getP(d,k,nmax):
+
+    def integStepFxn(x,fxn):
+        integral = [0]
+        for i in range(1,len(x),2):
+            integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
+            integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
+        integral.pop()
+        return integral    
+
+    def stepFxn(xL,xR,epsilon):
+        xL = xL[1:] # trim irrelevant start point
+        xR = xR[0:-1] #trim irrelevant end point
+        x, fxn = [0], [0]
+        for i in range(0,len(xR)):
+            # Stay zero
+            fxn.append(0)
+            x.append(xR[i]) #-epsilon)
+            # Jump to 1
+            fxn.append(1)
+            x.append(xR[i]) #+epsilon)
+            #Stay 1
+            fxn.append(1)
+            x.append(xL[i]) #-epsilon)
+            # Jump to 0
+            fxn.append(0)
+            x.append(xL[i]) #+epsilon)
+        x.append(1)
+        fxn.append(0)
+        return x,fxn
+
+    def farey( n, asc=True ): # give all rationals for nth farey tree
+        """Python function to print the nth Farey sequence, either ascending or descending."""
+        row = set()
+        if asc: 
+            a, b, c, d = 0, 1,  1 , n     # (*)
+        else:
+            a, b, c, d = 1, 1, n-1, n     # (*)
+        row.add((a,b))
+        while (asc and c <= n) or (not asc and a > 0):
+            k = int((n + b)/d)
+            a, b, c, d = c, d, k*c - a, k*d - b
+            row.add((a,b))
+        return row
+
+    class window:
+        def __init__(self,n,m,d,k):
+            self.r = float(n)/float(m) # rational center
+            self.num = n # numerator
+            self.den = m # denominator
+            self.low  = (n * m**(k-1) - d)/m**k # excluded upper bound
+            self.high = (n * m**(k-1) + d)/m**k # excluded low bound
+            
+        def __lt__(self,other):
+            return self.r < other.r
+            
+        def getLowDen(self,list):
+            lowDen = min(x.den for x in list)
+            lowWindow = (y for y in list if y.den == lowDen)
+            return min(lowWindow)
+            
+        def overlap(self,other):
+            if self.r < other.r:
+                return self.high >= other.low
+            else:
+                return self.low <= other.high
+                    
+        def merge(self,overlaps):
+            overlaps.append(self)
+            outWindow = self.getLowDen(overlaps)
+            outWindow.low = min(x.low for x in overlaps)
+            outWindow.high = max(x.high for x in overlaps)
+            return outWindow
+
     # Define initial regions: clean = no overlaps.
     cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
     
@@ -118,9 +116,11 @@ def getP(d,k,nmax):
     xR = [x.high for x in cleanRegions]
     x, gradp = stepFxn(xL,xR,.0000001)
     p = integStepFxn(x,gradp)
-    # return x, p, gradp
-    return max(p)
+    return x, p, gradp
 
+def deriv(y,x):
+    return np.gradient(y)/np.gradient(x)
+    
 def cylinderB(d,k,nmax,RKstep):
     x, p, gradp = getP(d, k, nmax)
     
@@ -160,11 +160,12 @@ def cylinderB(d,k,nmax,RKstep):
     
     return(iota.tolist(), Bz.tolist(), Btheta.tolist(), 
            Jtheta.tolist(), Jz.tolist(), x, p, gradp)
-    
 
+           
+# Make many plots of B, J, p for different parameters.
 # params = [0.1,0.2,0.25]
 # params.sort(reverse=False)
-# fareyLevel = 200
+# fareyLevel = 20
 # for param in params:
     # iota, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2,fareyLevel,0.00001)
     # magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
@@ -201,21 +202,21 @@ def cylinderB(d,k,nmax,RKstep):
 
 
 #Plot saturation of p as Farey tree saturates
-n = []
-pressuresBigWindow = []
-pressuresQuickDecay = []
-pressuresSmallWindow = []
+# n = []
+# pressuresBigWindow = []
+# pressuresQuickDecay = []
+# pressuresSmallWindow = []
 
-for i in range(10,201,10):
-    n.append(i)
-    pressuresBigWindow.append(getP(.25,2,i))
-    pressuresSmallWindow.append(getP(.1,2,i))
-    pressuresQuickDecay.append(getP(.25,3,i))
+# for i in range(10,101,10):
+    # n.append(i)
+    # pressuresBigWindow.append(max(getP(.25,2,i)[1]))
+    # pressuresSmallWindow.append(max(getP(.1,2,i)[1]))
+    # pressuresQuickDecay.append(max(getP(.25,3,i)[1]))
 
-plot(n,pressuresBigWindow,'r',label='d = 0.25, k = 2')
-plot(n,pressuresSmallWindow,'g',label='d = 0.1, k = 2')
-plot(n,pressuresQuickDecay,'b',label='d = 0.25, k = 3')
-legend()
-xlabel('Farey tree level')
-ylabel('Peak pressure')
-show()
+# plot(n,pressuresBigWindow,'r',label='d = 0.25, k = 2')
+# plot(n,pressuresSmallWindow,'g',label='d = 0.1, k = 2')
+# plot(n,pressuresQuickDecay,'b',label='d = 0.25, k = 3')
+# legend()
+# xlabel('Farey tree level')
+# ylabel('Peak pressure')
+# show()
