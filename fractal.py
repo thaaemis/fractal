@@ -129,7 +129,7 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     
     # for iota = a - r = Bz/Bth, make function for Bz' = ...
     def f(r, Bz, gradp):
-        a = 1
+        a = 0
         try:
             val = -((a-r)*(a-2*r))/(r+r*(a-r)**2)*Bz
         except ZeroDivisionError:
@@ -168,12 +168,12 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
-    params = [0,0.05,0.15,0.25]
+    params = [200,250,300,400]
     params.sort(reverse=False)
     fareyLevel = 100
     gs = gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
     for param in params:
-        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2,fareyLevel,0.00001)
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(0.424884,2.5,param,0.00001)
         magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
         subplot(gs[0,0:2])
         plot(x,p)
@@ -197,8 +197,6 @@ def makePlots():
     subplot(gs[1,1])
     title('Jz(r)')
     show()
-
-makePlots()
     
 def pressureAsymptotes():
     #Plot saturation of p as Farey tree saturates
