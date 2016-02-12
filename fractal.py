@@ -1,5 +1,6 @@
 from pylab import *
 import numpy as np
+from matplotlib import gridspec
     
 def integFractal(x,fractal):
     fxn = []
@@ -7,7 +8,7 @@ def integFractal(x,fractal):
         fxn.append(trapz(fractal[0:i],x[0:i]))
     return fxn
     
-def getP(d,k,nmax):
+def getP(d,k,nmax): # returns x, p, gradp
 
     def integStepFxn(x,fxn):
         integral = [0]
@@ -121,102 +122,101 @@ def getP(d,k,nmax):
 def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
     
-def cylinderB(d,k,nmax,RKstep):
+def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     x, p, gradp = getP(d, k, nmax)
-    
     p.reverse()
     gradp.reverse()
     
-    # for iota = r = Bz/Bth, make function for Bz' = ...
-    def f(iota, Bz, gradp):
-        return (-gradp/Bz - 2*iota*Bz)/(1+iota**2)
+    # for iota = a - r = Bz/Bth, make function for Bz' = ...
+    def f(r, Bz, gradp):
+        a = 1
+        try:
+            val = -((a-r)*(a-2*r))/(r+r*(a-r)**2)*Bz
+        except ZeroDivisionError:
+            val = 0
+        return -gradp/Bz/(1+(a-r)**2) + val
     
     # set initial conditions
-    Bz, iota, i = [1], [0], 0
+    Bz, r, i = [2], [0], 0
     
-    while iota[-1] <= 1:
-        # do RK4 method for solving for Bz(iota)
+    while r[-1] <= 1:
+        # do RK4 method for solving for Bz(r)
         h = min([x[i+1]-x[i],RKstep])
-        iotaNow, BzNow = iota[-1], Bz[-1]
-        k1 = f(iotaNow,BzNow,gradp[i])
-        k2 = f(iotaNow+h/2,BzNow+h/2*k1,gradp[i])
-        k3 = f(iotaNow+h/2,BzNow+h/2*k2,gradp[i])
-        k4 = f(iotaNow+h,BzNow+h*k3,gradp[i])
-        iota.append(iotaNow+h)
+        rNow, BzNow = r[-1], Bz[-1]
+        k1 = f(rNow,BzNow,gradp[i])
+        k2 = f(rNow+h/2,BzNow+h/2*k1,gradp[i])
+        k3 = f(rNow+h/2,BzNow+h/2*k2,gradp[i])
+        k4 = f(rNow+h,BzNow+h*k3,gradp[i])
+        r.append(rNow+h)
         Bz.append(BzNow+h/6*(k1+2*k2+2*k3+k4))
         # Update counter if we pass an index for x, p, gradp
-        if iota[-1] >= x[i+1]:
+        if r[-1] >= x[i+1]:
             try:
                 i = i+1
                 x[i+1]
             except IndexError:
                 break
     
-    iota = np.array(iota)
+    r = np.array(r)
     Bz = np.array(Bz)
-    Btheta = np.array(iota)*np.array(Bz)
-    Jtheta = -deriv(Bz,iota)
-    Jz = 1/iota*deriv(iota*Btheta,iota)
+    Btheta = np.array(r)*np.array(Bz)
+    Jtheta = -deriv(Bz,r)
+    Jz = 1/r*deriv(r*Btheta,r)
     
-    return(iota.tolist(), Bz.tolist(), Btheta.tolist(), 
+    return(r.tolist(), Bz.tolist(), Btheta.tolist(), 
            Jtheta.tolist(), Jz.tolist(), x, p, gradp)
 
-           
-# Make many plots of B, J, p for different parameters.
-# params = [0.1,0.2,0.25]
-# params.sort(reverse=False)
-# fareyLevel = 20
-# for param in params:
-    # iota, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2,fareyLevel,0.00001)
-    # magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
-    # figure(1)
-    # subplot(211)
-    # plot(iota,Bz)
-    # subplot(212)
-    # plot(iota,Btheta)
-    # # subplot(313)
-    # # plot(iota,magB)
-    # figure(2)
-    # subplot(211)
-    # plot(iota,Jtheta)
-    # subplot(212)
-    # plot(iota,Jz)
-    # figure(3)
-    # plot(x,p)
-# figure(1)
-# subplot(211)
-# legend(['d = '+str(g) for g in params])
-# title('Bz(r)')
-# subplot(212)
-# title('Btheta(r)')
-# figure(2)
-# subplot(211)
-# legend(['d = '+str(g) for g in params])
-# title('Jtheta(r)')
-# subplot(212)
-# title('Jz(r)')
-# figure(3)
-# title('p(r)')
-# legend(['d = '+str(g) for g in params])
-# show()
+def makePlots():           
+    # Make many plots of B, J, p for different parameters.
+    params = [0,0.05,0.15,0.25]
+    params.sort(reverse=False)
+    fareyLevel = 100
+    gs = gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
+    for param in params:
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2,fareyLevel,0.00001)
+        magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
+        subplot(gs[0,0:2])
+        plot(x,p)
+        subplot(gs[1,0])
+        plot(r,Bz)
+        subplot(gs[2,0])
+        plot(r,Btheta)
+        subplot(gs[2,1])
+        plot(r,Jtheta)
+        subplot(gs[1,1])
+        plot(r,Jz)
+    subplot(gs[0,0:2])
+    title('p(r)')
+    legend(['d = '+str(g) for g in params])
+    subplot(gs[1,0])
+    title('Bz(r)')
+    subplot(gs[2,0])
+    title('Btheta(r)')
+    subplot(gs[2,1])
+    title('Jtheta(r)')
+    subplot(gs[1,1])
+    title('Jz(r)')
+    show()
 
+makePlots()
+    
+def pressureAsymptotes():
+    #Plot saturation of p as Farey tree saturates
+    n = []
+    pressuresBigWindow = []
+    pressuresQuickDecay = []
+    pressuresSmallWindow = []
 
-#Plot saturation of p as Farey tree saturates
-# n = []
-# pressuresBigWindow = []
-# pressuresQuickDecay = []
-# pressuresSmallWindow = []
+    for i in range(10,101,10):
+        n.append(i)
+        pressuresBigWindow.append(max(getP(.25,2,i)[1]))
+        pressuresSmallWindow.append(max(getP(.1,2,i)[1]))
+        pressuresQuickDecay.append(max(getP(.25,3,i)[1]))
 
-# for i in range(10,101,10):
-    # n.append(i)
-    # pressuresBigWindow.append(max(getP(.25,2,i)[1]))
-    # pressuresSmallWindow.append(max(getP(.1,2,i)[1]))
-    # pressuresQuickDecay.append(max(getP(.25,3,i)[1]))
-
-# plot(n,pressuresBigWindow,'r',label='d = 0.25, k = 2')
-# plot(n,pressuresSmallWindow,'g',label='d = 0.1, k = 2')
-# plot(n,pressuresQuickDecay,'b',label='d = 0.25, k = 3')
-# legend()
-# xlabel('Farey tree level')
-# ylabel('Peak pressure')
-# show()
+    plot(n,pressuresBigWindow,'r',label='d = 0.25, k = 2')
+    plot(n,pressuresSmallWindow,'g',label='d = 0.1, k = 2')
+    plot(n,pressuresQuickDecay,'b',label='d = 0.25, k = 3')
+    legend()
+    xlabel('Farey tree level')
+    ylabel('Peak pressure')
+    show()
