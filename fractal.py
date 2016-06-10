@@ -168,12 +168,12 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
-    params = [200,250,300,400]
+    params = [.1, .2]
     params.sort(reverse=False)
     fareyLevel = 100
     gs = gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
     for param in params:
-        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(0.424884,2.5,param,0.00001)
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2.5,100,0.00001)
         magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
         subplot(gs[0,0:2])
         plot(x,p)
@@ -218,3 +218,5 @@ def pressureAsymptotes():
     xlabel('Farey tree level')
     ylabel('Peak pressure')
     show()
+    
+makePlots()
