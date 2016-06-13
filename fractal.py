@@ -123,30 +123,33 @@ def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
     
 def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
+    
     x, p, gradp = getP(d, k, nmax)
     p.reverse()
     gradp.reverse()
     
-    # for iota = a - r = Bz/Bth, make function for Bz' = ...
-    def f(r, Bz, gradp):
-        a = 0
-        try:
-            val = -((a-r)*(a-2*r))/(r+r*(a-r)**2)*Bz
-        except ZeroDivisionError:
-            val = 0
-        return -gradp/Bz/(1+(a-r)**2) + val
+    def iota(r):
+        return 1-7*r**2/8.
+    def iotaPrime(r):
+        return -7*r/4.
+    R = 2.
+    
+    def BzPrime(r, Bz, gradp):
+        BzP = -(R**2 + iota(r)**2 * r**2)**-1 * (gradp * R**2 / Bz + \
+            Bz * (r**2 * iota(r) * iotaPrime(r) + 2 * r * iota(r)**2) )
+        return BzP
     
     # set initial conditions
-    Bz, r, i = [2], [0], 0
+    Bz, r, i = [1.2], [0], 0
     
     while r[-1] <= 1:
         # do RK4 method for solving for Bz(r)
         h = min([x[i+1]-x[i],RKstep])
         rNow, BzNow = r[-1], Bz[-1]
-        k1 = f(rNow,BzNow,gradp[i])
-        k2 = f(rNow+h/2,BzNow+h/2*k1,gradp[i])
-        k3 = f(rNow+h/2,BzNow+h/2*k2,gradp[i])
-        k4 = f(rNow+h,BzNow+h*k3,gradp[i])
+        k1 = BzPrime(rNow,BzNow,gradp[i])
+        k2 = BzPrime(rNow+h/2,BzNow+h/2*k1,gradp[i])
+        k3 = BzPrime(rNow+h/2,BzNow+h/2*k2,gradp[i])
+        k4 = BzPrime(rNow+h,BzNow+h*k3,gradp[i])
         r.append(rNow+h)
         Bz.append(BzNow+h/6*(k1+2*k2+2*k3+k4))
         # Update counter if we pass an index for x, p, gradp
@@ -159,7 +162,7 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     
     r = np.array(r)
     Bz = np.array(Bz)
-    Btheta = np.array(r)*np.array(Bz)
+    Btheta = r*np.array(Bz)*iota(r)/R
     Jtheta = -deriv(Bz,r)
     Jz = 1/r*deriv(r*Btheta,r)
     
@@ -168,34 +171,43 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
-    params = [.1, .2]
+    params = [.1,0.15,0.2]
     params.sort(reverse=False)
     fareyLevel = 100
-    gs = gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
+    
+    figure(2)
+    gs = gridspec.GridSpec(2, 2, height_ratios = [1,1]) # gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
     for param in params:
-        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2.5,100,0.00001)
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2,100,0.00001)
         magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
-        subplot(gs[0,0:2])
+        figure(1) # subplot(gs[0,0:2])
         plot(x,p)
-        subplot(gs[1,0])
+        figure(2)
+        subplot(gs[0,0]) # subplot(gs[1,0])
         plot(r,Bz)
-        subplot(gs[2,0])
+        subplot(gs[1,0])
         plot(r,Btheta)
-        subplot(gs[2,1])
-        plot(r,Jtheta)
         subplot(gs[1,1])
+        plot(r,Jtheta)
+        subplot(gs[0,1])
         plot(r,Jz)
-    subplot(gs[0,0:2])
-    title('p(r)')
+        
+    figure(1) # subplot(gs[0,0:2])
+    text(0.4, 0.35, r"$p(r)$", fontsize=30)
+    xlabel(r'r/a', fontsize=20)
     legend(['d = '+str(g) for g in params])
+    figure(2)
+    subplot(gs[0,0])
+    text(0.1, 0.85, r"$B_z(r)$", fontsize=26)
     subplot(gs[1,0])
-    title('Bz(r)')
-    subplot(gs[2,0])
-    title('Btheta(r)')
-    subplot(gs[2,1])
-    title('Jtheta(r)')
+    text(0.9, max(Btheta)*0.8, r"$B_\theta(r)$", fontsize=26)
+    xlabel(r'r/a',fontsize=20)
     subplot(gs[1,1])
-    title('Jz(r)')
+    text(0.95, max(Jtheta)*0.8, r"$J_\theta(r)$", fontsize=26)
+    xlabel(r'r/a',fontsize=20)
+    subplot(gs[0,1])
+    text(0.1, -0.1, r"$J_z(r)$", fontsize=26)
+    legend(['d = '+str(g) for g in params])
     show()
     
 def pressureAsymptotes():
