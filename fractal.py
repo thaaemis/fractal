@@ -164,21 +164,22 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     Bz = np.array(Bz)
     Btheta = r*np.array(Bz)*iota(r)/R
     Jtheta = -deriv(Bz,r)
-    Jz = 1/r*deriv(r*Btheta,r)
+    with np.errstate(divide='ignore'):
+        Jz = 1/r*deriv(r*Btheta,r)
     
     return(r.tolist(), Bz.tolist(), Btheta.tolist(), 
            Jtheta.tolist(), Jz.tolist(), x, p, gradp)
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
-    params = [.1,0.15,0.2]
+    params = [89,144]
     params.sort(reverse=False)
-    fareyLevel = 100
+    fareyLevel = 88
     
     figure(2)
     gs = gridspec.GridSpec(2, 2, height_ratios = [1,1]) # gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
     for param in params:
-        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param,2,100,0.00001)
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.2,2,param,0.00001)
         magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
         figure(1) # subplot(gs[0,0:2])
         plot(x,p)
@@ -196,6 +197,8 @@ def makePlots():
     text(0.4, 0.35, r"$p(r)$", fontsize=30)
     xlabel(r'r/a', fontsize=20)
     legend(['d = '+str(g) for g in params])
+    [xmin, xmax, ymin, ymax] = axis()
+    plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
     figure(2)
     subplot(gs[0,0])
     text(0.1, 0.85, r"$B_z(r)$", fontsize=26)
