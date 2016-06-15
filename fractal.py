@@ -1,6 +1,7 @@
 from pylab import *
 import numpy as np
 from matplotlib import gridspec
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
     
 def integFractal(x,fractal):
     fxn = []
@@ -122,7 +123,7 @@ def getP(d,k,nmax): # returns x, p, gradp
 def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
     
-def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
+def cylinderB(d,k,nmax,RKstep,R=2.): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     
     x, p, gradp = getP(d, k, nmax)
     p.reverse()
@@ -132,7 +133,6 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
         return 1-7*r**2/8.
     def iotaPrime(r):
         return -7*r/4.
-    R = 2.
     
     def BzPrime(r, Bz, gradp):
         BzP = -(R**2 + iota(r)**2 * r**2)**-1 * (gradp * R**2 / Bz + \
@@ -172,17 +172,21 @@ def cylinderB(d,k,nmax,RKstep): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
-    params = [89,144]
+    params = [2.,10.,100.,1000.]
     params.sort(reverse=False)
-    fareyLevel = 88
-    
+    fareyLevel = 100
+    fig = figure(1) # subplot(gs[0,0:2])
+    ax = fig.add_subplot(111)
+    axins = inset_axes(ax, 3,3, loc=3)
+
     figure(2)
     gs = gridspec.GridSpec(2, 2, height_ratios = [1,1]) # gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
     for param in params:
-        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.2,2,param,0.00001)
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.15,2,fareyLevel,0.00001,param)
         magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
-        figure(1) # subplot(gs[0,0:2])
-        plot(x,p)
+        figure(1)
+        ax.plot(x,np.array(p)/max(p))
+        axins.plot(x,np.array(p)/max(p))
         figure(2)
         subplot(gs[0,0]) # subplot(gs[1,0])
         plot(r,Bz)
@@ -194,11 +198,21 @@ def makePlots():
         plot(r,Jz)
         
     figure(1) # subplot(gs[0,0:2])
-    text(0.4, 0.35, r"$p(r)$", fontsize=30)
+    sca(ax)
+    text(0.8, 0.5, r"$p(r)$", fontsize=30)
     xlabel(r'r/a', fontsize=20)
-    legend(['d = '+str(g) for g in params])
+    legend(['R = '+str(g) for g in params])
     [xmin, xmax, ymin, ymax] = axis()
     plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
+    sca(axins)
+    plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
+    axis([0.618,0.61808,0.,0.51])
+    xticks([])
+    yticks([])
+    # text(0.617965,.33445,r"55/89",color="blue")
+    # text(.618046, 0.3341,r"89/144",color="green")
+    # annotate(r"144/233",xy=(.618026,0.333781),xytext=(.61798,.3334),color="red",
+    #     arrowprops=dict(facecolor='red'))
     figure(2)
     subplot(gs[0,0])
     text(0.1, 0.85, r"$B_z(r)$", fontsize=26)
