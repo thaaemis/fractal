@@ -1,7 +1,7 @@
 from pylab import *
 import numpy as np
 
-def main(path, plotOn=False, d = 0.2, k = 2, col = 'k'):
+def main(path, plotOn=False, d = 0.25, k = 2, col = 'k'):
 
     class rational:
         def __init__(self,num,den):
@@ -24,17 +24,17 @@ def main(path, plotOn=False, d = 0.2, k = 2, col = 'k'):
         separation = abs(farey1 - farey2)
         widthLeft = min(abs(farey1.diophantine[0] - farey2.diophantine[1]), 
                         abs(farey1.diophantine[1] - farey2.diophantine[0]))
-        try:
+        if separation > 1e-15:
             fraction = widthLeft / separation
-        except ZeroDivisionError:
+        else:
             fraction = 0
         return fraction
 
     farey = [rational(0,1), rational(1, 1), rational(1,2)]
     fraction = [] # size of remaining region / size between rationals
-    maxN = 45
+    maxN = 500
     if type(path) == str:
-        path = path*int((maxN+1)/len(path))
+        path = path*int((maxN)/len(path)+1)
         target = None
     else:
         target = path
@@ -67,25 +67,27 @@ def main(path, plotOn=False, d = 0.2, k = 2, col = 'k'):
         center = target
     else:
         center = np.mean([x.val for x in farey[-5:-1]])
-    
-    print(center)
-    
+        
     # Get irrational fraction between two rationals
-    fraction = []
+    rawFraction, fraction, fracOrder = [], [], []
     for i in range(1,len(farey)):
-        fraction.append(getFraction(farey[i-1],farey[i]))
+        rawFraction.append(getFraction(farey[i-1],farey[i]))
+    for i in range(len(rawFraction)):
+        if rawFraction[i] > 0:
+            fracOrder.append(i)
+            fraction.append(rawFraction[i])
     fraction = np.asarray(fraction)
     
     if plotOn:
         figure(1)
         subplot(2,1,1)
-        plot(fraction,color=col)
+        plot(fracOrder,fraction,color=col,marker='o')
         text(3,1.02,'Remaining fraction between two rational excluded regions')
         xticks([])
         ylabel(r"$f_L$")
         
         subplot(2,1,2)
-        semilogy(abs(fraction-np.median(fraction)),color=col)
+        semilogy(fracOrder,abs(fraction-np.median(fraction)),color=col,marker='o') 
         # legend(['Alternating noble steps',r"Steps approaching 1/3"],loc='best')
         xlabel('Steps down Farey tree')
         ylabel(r"Error from asymptotic $f_L$")
@@ -96,26 +98,40 @@ def main(path, plotOn=False, d = 0.2, k = 2, col = 'k'):
         figure(2)
         for i in range(len(farey)):
             plot(i,abs(farey[i].val-center),color=col,marker='o')
-            plot(i,min(abs(farey[i].diophantine[0]-center),abs(farey[i].diophantine[1]-center)),
-                    color=col,marker='x')
+            # plot(i,min(abs(farey[i].diophantine[0]-center),abs(farey[i].diophantine[1]-center)),
+            #       color=col,marker='x')
         yscale('log')
         legend(['Rational','Diophantine window edge'],loc='best')
         ylabel('Distance from asymptotic limit')
         xlabel('Steps down Farey tree')
+    return(fraction[-1])
 
-dmin, dmax = 0.15, 0.35
+dmin, dmax = 0.0, 0.5
 cmap = cm.get_cmap('gnuplot2')
-junk = contourf([[0,0],[0,0]],np.arange(dmin,dmax+0.01,0.001),cmap=cmap)
-clf()
+# junk = contourf([[0,0],[0,0]],np.arange(dmin,dmax+0.01,0.001),cmap=cmap)
+# clf()
 
-# for d in np.arange(dmin, dmax, 0.01): 
-#    main(True,1,True, d, cmap((d-dmin)/(dmax-dmin)))
-main('RLLL',True)
-main('RLL',True)
-main('RL',True)
-# main(1/math.pi,True)
-fig = figure(1)
-fig.subplots_adjust(right=0.8)
-cbarAx = fig.add_axes([0.85,0.15,0.05,0.7])
-colorbar(junk,cax=cbarAx)
+ks = np.arange(1.7,5,0.01)
+main(1/math.pi,True, col='k')
+main('RL',True, col='r')
 show()
+
+# for d in np.arange(0,0.5,0.01):
+    # asymptote = []
+    # for k in ks: 
+       # main(True,1,True, d, cmap((d-dmin)/(dmax-dmin)))
+        # asymptote.append(main(1/1.,False,d,k))
+    # main(1/2.,True, col='c')
+    # main(19512/33201.,True, col='c')
+    # main(1/math.e,True, col='m')
+    # main('RRL',True, col='g')
+
+    # main(1/math.pi,True)
+    # fig = figure(1)
+    # fig.subplots_adjust(right=0.8)
+    # cbarAx = fig.add_axes([0.85,0.15,0.05,0.7])
+    # colorbar(junk,cax=cbarAx)
+
+    # plot(ks,asymptote,color=cmap(2*d))
+
+# show()
