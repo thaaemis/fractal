@@ -1,7 +1,7 @@
 from pylab import *
 import numpy as np
 
-def main(path, plotOn=False, d = 0.25, k = 2, col = 'k'):
+def main(path, plotOn=False, d = 0.1, k = 2, col = 'k'):
 
     class rational:
         def __init__(self,num,den):
@@ -29,10 +29,12 @@ def main(path, plotOn=False, d = 0.25, k = 2, col = 'k'):
         else:
             fraction = 0
         return fraction
-
+    
+    pathOriginal = path
+    
     farey = [rational(0,1), rational(1, 1), rational(1,2)]
     fraction = [] # size of remaining region / size between rationals
-    maxN = 500
+    maxN = 200
     if type(path) == str:
         path = path*int((maxN)/len(path)+1)
         target = None
@@ -71,7 +73,10 @@ def main(path, plotOn=False, d = 0.25, k = 2, col = 'k'):
     # Get irrational fraction between two rationals
     rawFraction, fraction, fracOrder = [], [], []
     for i in range(1,len(farey)):
-        rawFraction.append(getFraction(farey[i-1],farey[i]))
+        if pathOriginal == 'RRLL' and i > 1:
+            rawFraction.append(getFraction(farey[i-1],farey[i]))
+        else:
+            rawFraction.append(getFraction(farey[i-1],farey[i]))
     for i in range(len(rawFraction)):
         if rawFraction[i] > 0:
             fracOrder.append(i)
@@ -101,26 +106,53 @@ def main(path, plotOn=False, d = 0.25, k = 2, col = 'k'):
             # plot(i,min(abs(farey[i].diophantine[0]-center),abs(farey[i].diophantine[1]-center)),
             #       color=col,marker='x')
         yscale('log')
-        legend(['Rational','Diophantine window edge'],loc='best')
-        ylabel('Distance from asymptotic limit')
-        xlabel('Steps down Farey tree')
-    return(fraction[-1])
-
-dmin, dmax = 0.0, 0.5
-cmap = cm.get_cmap('gnuplot2')
+        # legend(['Rational','Diophantine window edge'],loc='best')
+        ylabel('Distance from asymptotic limit',fontsize=20)
+        xlabel('Steps down Farey tree',fontsize=20)
+        
+    
+    if pathOriginal == 'RRLL':
+        return([np.median(fraction[0:][::2]), np.median(fraction[1:][::2])])
+    else:
+        return(np.median(fraction))
+    
+# dmin, dmax = 0.0, 0.5
+# cmap = cm.get_cmap('gnuplot2')
 # junk = contourf([[0,0],[0,0]],np.arange(dmin,dmax+0.01,0.001),cmap=cmap)
 # clf()
+# figure(2)
+# plot([0],[0],'co',[0],[0],'bo',[0],[0],'go',[0],[0],'ko',[0],[0],'mo',[0],[0],'ro')
+# ks = np.arange(1.7,5,0.01)
+# main(1/2.,True, col='b')
+# main(1/math.pi,True, col='g')
 
-ks = np.arange(1.7,5,0.01)
-main(1/math.pi,True, col='k')
-main('RL',True, col='r')
-show()
+# 
+# plot([2**((float(x)-1)/2) for x in range(0,50)],'b')
+# yscale('log')
+# legend(["1",r"$1/2$", r"$1/\pi$", r"$1/e$",'RRLL (silver mean)', 'RL (golden mean)'],loc='best',numpoints=1)
+# show()
 
-# for d in np.arange(0,0.5,0.01):
+fracs1 = []
+fracse = []
+fracsG = []
+fracsSeven = []
+fracsSodd = []
+# main('RRLL',True, col='m',d=0.2)
+# show()
+
+ds = np.arange(0,0.5,0.01)
+for d in ds:
     # asymptote = []
     # for k in ks: 
        # main(True,1,True, d, cmap((d-dmin)/(dmax-dmin)))
         # asymptote.append(main(1/1.,False,d,k))
+    fracs1.append(main(1.,False,col='c',d=d))
+    fracse.append(main(1/math.e,False, col='k',d=d))
+    pair = main('RRLL',False, col='m',d=d)
+    fracsSeven.append(pair[0])
+    fracsSodd.append(pair[1])
+    fracsG.append(main('RL',False, col='r',d=d))
+
     # main(1/2.,True, col='c')
     # main(19512/33201.,True, col='c')
     # main(1/math.e,True, col='m')
@@ -133,5 +165,11 @@ show()
     # colorbar(junk,cax=cbarAx)
 
     # plot(ks,asymptote,color=cmap(2*d))
+    
+plot(ds, fracs1, 'co', ds, fracse, 'ko', ds, fracsG, 'ro', ds, fracsSeven, 'mo', ds, fracsSodd, 'mx',[0,0.5],[0.5,0.5],'k--')
+legend(['1',r"$1/e$",'RL (golden mean)','RRLL (odd)', 'RRLL (even)'],numpoints=1,loc='best')
+ylabel(r"Asymptotic $f_L$ remaining",fontsize=20)
+xlabel("d",fontsize=20)
+show()
 
 # show()

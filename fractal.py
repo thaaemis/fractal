@@ -9,7 +9,7 @@ def integFractal(x,fractal):
         fxn.append(trapz(fractal[0:i],x[0:i]))
     return fxn
     
-def getP(d,k,nmax): # returns x, p, gradp
+def getP(d, k, nmax, fareyMethod = 'maxDen'): # returns x, p, gradp
 
     def integStepFxn(x,fxn):
         integral = [0]
@@ -86,10 +86,26 @@ def getP(d,k,nmax): # returns x, p, gradp
     # Define initial regions: clean = no overlaps.
     cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
     
+    # Make list of all rationals to consider.
+    fareyLevels = []
+    if fareyMethod == 'maxDen':
+        for n in range(2, nmax+1):
+            fareyLevels.append(farey(n)-farey(n-1))
+    elif fareyMethod == 'treeSteps':
+        fareyAll = [(0,1),(1,1)]
+        fareyLevels.append(set(fareyAll))
+        for n in range(nmax+1):
+            newLevel, count = [], 1
+            fareyAllCopy = [x for x in fareyAll]
+            # newLevel.append(fareyAll[i])
+            for i in range(len(fareyAll)-1):
+                newLevel.append((fareyAllCopy[i][0]+fareyAllCopy[i+1][0],fareyAllCopy[i][1]+fareyAllCopy[i+1][1]))
+                fareyAll.insert(i+count,newLevel[-1])
+                count += 1
+            fareyLevels.append(set(newLevel))
+                
     # Loop over levels of Farey tree from 2 until nmax:
-    for n in range(2,nmax+1):
-        # Compute new Farey rationals
-        newregions = list(farey(n)-farey(n-1))
+    for newregions in fareyLevels:
         # Check what to do with new window around this rational.
         for x in newregions:
             # Set up new window with zero overlaps so far
@@ -123,9 +139,9 @@ def getP(d,k,nmax): # returns x, p, gradp
 def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
     
-def cylinderB(d,k,nmax,RKstep,R=2.): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
+def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     
-    x, p, gradp = getP(d, k, nmax)
+    x, p, gradp = getP(d, k, nmax, fareyMethod = fareyMethod)
     p.reverse()
     gradp.reverse()
     
@@ -172,21 +188,21 @@ def cylinderB(d,k,nmax,RKstep,R=2.): # returns iota, Bz, Bth, Jth, Jz, x, p, gra
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
-    params = [2.,10.,100.,1000.]
+    params = [('maxDen',200),('treeSteps',11),('treeSteps',12)]
     params.sort(reverse=False)
-    fareyLevel = 100
+    fareyLevel = 15
     fig = figure(1) # subplot(gs[0,0:2])
     ax = fig.add_subplot(111)
-    axins = inset_axes(ax, 3,3, loc=3)
+    # axins = inset_axes(ax, 3,3, loc=3)
 
     figure(2)
     gs = gridspec.GridSpec(2, 2, height_ratios = [1,1]) # gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
     for param in params:
-        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.15,2,fareyLevel,0.00001,param)
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.15,2,param[1],0.00001,fareyMethod=param[0])
         magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
         figure(1)
-        ax.plot(x,np.array(p)/max(p))
-        axins.plot(x,np.array(p)/max(p))
+        ax.plot(x,np.array(p))
+        # axins.plot(x,np.array(p))
         figure(2)
         subplot(gs[0,0]) # subplot(gs[1,0])
         plot(r,Bz)
@@ -204,11 +220,11 @@ def makePlots():
     legend(['R = '+str(g) for g in params])
     [xmin, xmax, ymin, ymax] = axis()
     plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
-    sca(axins)
-    plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
-    axis([0.618,0.61808,0.,0.51])
-    xticks([])
-    yticks([])
+    # sca(axins)
+    # plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
+    # axis([0.618,0.61808,0.,0.51])
+    # xticks([])
+    # yticks([])
     # text(0.617965,.33445,r"55/89",color="blue")
     # text(.618046, 0.3341,r"89/144",color="green")
     # annotate(r"144/233",xy=(.618026,0.333781),xytext=(.61798,.3334),color="red",
