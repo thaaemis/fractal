@@ -264,4 +264,15 @@ def pressureAsymptotes():
     ylabel('Peak pressure')
     show()
     
-makePlots()
+# makePlots()
+
+r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.15,2,10,0.00001,fareyMethod='treeSteps')
+subplot(1,2,1)
+plot(x, [-1*i for i in gradp])
+xlabel('x')
+axis([0,1,-1.1,0.1])
+subplot(1,2,2)
+plot(x,p)
+xlabel('x')
+axis([0,1,-0.01,0.2])
+show()
