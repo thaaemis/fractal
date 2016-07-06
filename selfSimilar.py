@@ -13,12 +13,15 @@ class rational:
         return self.val < other.val
         
     def __sub__(self,other):
-        return self.val - other.val
+        if other.__class__.__name__ == 'rational':
+            return self.val - other.val
+        else:
+            return self.val - other
         
     def __repr__(self):
         return str(self.num)+'/'+str(self.den)
 
-def getFareyPath(path,maxN,d,k):    
+def getFareyPath(path,maxN,d,k, convergents = False):    
     farey = [rational(0,1,d,k), rational(1, 1,d,k), rational(1,2,d,k)]
     if type(path) == str:
         path = path*int((maxN)/len(path)+1)
@@ -32,7 +35,7 @@ def getFareyPath(path,maxN,d,k):
 
     # Generate Farey tree in appropriate path/number
     for n in range(2, maxN):
-        if type(target) == (float or int):
+        if target != None:
             if target > farey[-1].val:
                 path = path + 'R' 
             else:
@@ -46,16 +49,26 @@ def getFareyPath(path,maxN,d,k):
             if abs(farey[-1]-relevantFarey[i]) < minDist:
                 winner = relevantFarey[i]
                 minDist = abs(farey[-1]-relevantFarey[i])
+        nextUp = nextLevel(farey[-1],winner)
+        if abs(nextUp - farey[-1]) < 1e-14 or (target != None and nextUp.val == target): 
+            break        # So there aren't problems with computer accuracy
+        farey.append(nextUp)
         
-        farey.append(nextLevel(farey[-1],winner))
-
     if type(target) == (float or int):
         center = target
     else:
         center = np.mean([x.val for x in farey[-5:-1]])
-        
-    return(farey, center, path)
-
+    if convergents == False:
+        return(farey, center, path)
+    else:
+        convergents = [farey[0]] if center < 0.5 else [farey[1]]
+        indices = [0]
+        for i in range(1,len(farey)-1):
+            # last mediant on one side of target is a convergent
+            if ( (farey[i+1] - center) > 0 ) != ( (farey[i] - center) > 0 ):
+                convergents.append(farey[i])
+                # indices.append(i)
+        return(convergents,center,path) # ,indices)
 
 def makeFractionList(path, plotOn=False, d = 0.1, k = 2, col = 'k'):
 
@@ -188,52 +201,174 @@ def plotFractions():
 
         show()
 
-def plotDmin(d = 0.2, k = 2., leg = False):
-    alpha = {(math.sqrt(5)-1)/2.:r'$1-1/\varphi$',
-              1/math.pi:r'$1/\pi$', 
-              1/math.sqrt(2):r'$1/\sqrt{2}$', 
-              1/math.sqrt(10):r'$1/\sqrt{10}$',
-              1/55.:r'$1/55$'}
-    dminLookup = dict()
-    colors = ['k','g','r','b','m','c']
-    for a in alpha.keys():
-        farey, center, path = getFareyPath(a,50,d,k)
-        dmin = [1]
+def getDmax(d = 0.2, k = 2., leg = False, plotOn = False):
+    class number:
+        def __init__(self, val, string, type):
+            self.val = val
+            self.string = string
+            self.type = type
+            
+    alpha = [number((math.sqrt(5)-1)/2., r'$1-1/\varphi$','noble-like'),
+             number(1/math.pi, r'$1/\pi$', 'irrational'),
+             number(1/(math.e+math.pi), r'$1/(\pi+e)$', 'irrational'),
+             number(7331/10321., r'$7331/10321$', 'rational') ,
+             number(15831/19321., r'$15831/19321$', 'rational') ,
+             number(1/math.sqrt(5), r'$1/\sqrt{5}$', 'bound4'),
+             number(1/math.sqrt(6), r'$1/\sqrt{6}$', 'bound4'),
+             number(1/math.sqrt(8), r'$1/\sqrt{8}$', 'bound4'),
+             number(1/math.sqrt(10), r'$1/\sqrt{10}$', 'bound6'),
+             number(1/math.sqrt(11), r'$1/\sqrt{11}$', 'bound6'),
+             number(1/math.sqrt(15), r'$1/\sqrt{15}$', 'bound6'),
+             number(1/math.sqrt(17), r'$1/\sqrt{17}$', 'irrational'),
+             number(1/math.sqrt(51), r'$1/\sqrt{51}$', 'irrational'),
+             number(1/math.sqrt(101), r'$1/\sqrt{101}$', 'irrational')]
+    markerLookup = {'noble-like':'D', 'irrational':'*', 'rational':'^', 'bound4':"8", 'bound6':"."}
+    # sizeLookup = {'noble-like':7, 'irrational':8, 'rational':8}
+    dMaxLookup = dict()
+    colors = ['k','g','r','b','m','c','y']
+    for a in alpha:
+        farey, center, path = getFareyPath(a.val,600,d,k,convergents=True)
+        dmax = [1]
         dImmediate = []
         for f in farey:
-            dNow = abs(a*f.den**k - f.num*f.den**(k-1))
-            dmin.append(min(dNow,dmin[-1]))
+            dNow = abs(a.val*f.den**k - f.num*f.den**(k-1))
+            dmax.append(min(dNow,dmax[-1]))
             dImmediate.append(dNow)
-        dmin.pop(0)
-        dminLookup[a] = dmin
-        col = colors.pop(0)
-        plot(dmin,'-',c=col,label=alpha[a])
-        plot(dImmediate,'.',c=col,label="_",markersize=6)
-    if leg:
-        legend()
-    yscale('log')
+        dmax.pop(0)
+        dMaxLookup[a.val] = dImmediate
+        try:
+            col = colors.pop(0)
+        except IndexError:
+            colors = ['k','g','r','b','m','c','y']
+            col = '0.75'
+
+        if plotOn:
+            # plot(dmax,'-',c=col,label="_")
+            plot(dImmediate,'.',c=col,label=a.string,
+                markersize=6,marker=markerLookup[a.type])
+    if plotOn and leg:
+        legend(loc='best',numpoints=1)
+    if plotOn:
+        yscale('log')
+        [xmin, xmax, ymin, ymax] = axis()
+        # axis([xmin, 12, ymin, ymax])
+        text(8,math.exp(log(ymax)-(log(ymax)-log(ymin))*0.85),r'$k = $'+str(k),fontsize=20)
+    return(alpha, dMaxLookup)
+
+def plotDmax():
+     
+    figure()
+    subplot(2,2,1) 
+    getDmax(k=1.9,plotOn=True)
+    ylabel(r'$d_{max}$',fontsize=30)
+    subplot(2,2,2)
+    getDmax(k=2,leg=True,plotOn=True)
     [xmin, xmax, ymin, ymax] = axis()
-    text(5,math.exp(log(ymax)-(log(ymax)-log(ymin))*0.15),r'$k = $'+str(k),fontsize=25)
- 
-figure()
-subplot(2,2,1) 
-plotDmin(k=1.96)
-ylabel(r'$d_{min}$')
-subplot(2,2,2)
-plotDmin(k=2,leg=True)
-subplot(2,2,3)
-plotDmin(k=2.1)
-ylabel(r'$d_{min}$')
-xlabel(r'Farey level $\mathscr{F}_j$')
-subplot(2,2,4)
-plotDmin(k=3)
-xlabel(r'Farey level $\mathscr{F}_j$')
-currentAxes = axis()
-legend()
-ax = gca()
-ax.legend_.remove()
-plot([0,0],'-',[0,0],'.',c='k',markersize=10,linewidth=5)
-legend([r'$d_{min}$',r'$d,$ this step'])
-axis(currentAxes)
-matplotlib.rcParams.update({'font.size': 20})
-show()
+    text(1,math.exp(log(ymax)-(log(ymax)-log(ymin))*0.85),r'$k = 2$',fontsize=20)
+    subplot(2,2,3)
+    getDmax(k=2.1,plotOn=True)
+    ylabel(r'$d_{max}$',fontsize=30)
+    xlabel(r'Convergent #',fontsize=30)
+    subplot(2,2,4)
+    getDmax(k=3,plotOn=True)
+    xlabel(r'Convergent #',fontsize=30)
+    currentAxes = axis()
+    legend()
+    ax = gca()
+    ax.legend_.remove()
+    plot([0,0],'-',[0,0],'.',c='k',markersize=10,linewidth=5)
+    # legend([r'$d_{max}$'])# ,r'$d,$ this step'])
+    axis(currentAxes)
+    matplotlib.rcParams.update({'font.size': 16})
+    show()
+
+def testConvergents(): # needs uncommenting indices in getFareyPath above
+    d, k, a = 0.2, 1.9, 1/math.sqrt(2)
+    convergents, center, path, indices = getFareyPath(a,300,d,k,convergents=True)
+    farey, center, path = getFareyPath(a,100,d,k,convergents=False)
+    dFarey, dConvergents = [], []
+    for f in farey:
+        dNow = abs(a*f.den**k - f.num*f.den**(k-1))
+        dFarey.append(dNow)
+    for f in convergents:
+        dNow = abs(a*f.den**k - f.num*f.den**(k-1))
+        dConvergents.append(dNow)
+    plot(dFarey,'bx',indices,dConvergents,'ko')
+    yscale('log')
+    show()
+    
+def nobleSlopes():
+
+    def findAvgSlope(points,step): # gets exponential slope between points of dmax
+        slopes = [(log(points[i])-log(points[i-1]))/step for i in range(1,len(points))]
+        return np.mean(slopes), np.std(slopes)
+
+    markerLookup = {'noble-like':'D', 'irrational':'*', 'rational':'^', 'bound4':"8", 'bound6':"."}
+    figure()
+    cmap = cm.spectral
+    allSlopes = dict()
+    kstep = 0.05
+    for k in np.arange(1,3,kstep):
+        nums, dMaxes = getDmax(d=0.2,k=k)
+        slopeLookup = dict()
+        maximum = 0
+        for num in nums:
+            maximum = max(abs(num.val - 2./(1+sqrt(5))), maximum)
+        for num in nums:
+            dmax = dMaxes[num.val]
+            dmax = dmax[4:]
+            all = findAvgSlope(dmax,1)
+            even = findAvgSlope(dmax[::2],2)
+            odd = findAvgSlope(dmax[1::2],2)
+            if all[1] > abs(0.1*all[0]):
+                slopeLookup[num.val] = np.mean([even[0],odd[0]])
+            else:
+                slopeLookup[num.val] = all[0]
+            label = '_' if k != 2.5 else num.string
+            plot(k,slopeLookup[num.val],'o',c=cmap(abs(num.val- 2./(1+sqrt(5)))/maximum),
+                    marker=markerLookup[num.type],label=label,markersize=10)
+        allSlopes[k] = slopeLookup
+    for num in nums:
+        slopevsK = []
+        ks = sort(allSlopes.keys())
+        for k in ks:
+            x = allSlopes[k][num.val]
+            if x != NAN:
+                slopevsK.append(x)
+        slope = mean([(slopevsK[i] - slopevsK[i-1])/kstep for i in range(1,len(slopevsK))])
+        print(num.string, num.val, '%.2f' %slope)
+            
+    legend(loc='best',numpoints=1)
+    
+    show()
+        
+        
+    
+    
+# plotDmax()
+
+nobleSlopes()
+
+def examineDenominators(target = 1./sqrt(7)):
+
+    farey, center, path = getFareyPath(target,500,0.2,2,convergents=True)    
+    print([x for x in farey])
+    subplot(2,1,1)
+    plot([abs(x.val-target) for x in farey],'bo')
+    yscale('log')
+    subplot(2,1,2)
+    denominatorRatio = []
+    for i in range(1,len(farey)):
+        denominatorRatio.append(float(farey[i].den)/float(farey[i-1].den))
+    plot(denominatorRatio,'ro')
+    show()    
+        
+    
+    
+    
+    
+    
+    
+    
+    
+    
