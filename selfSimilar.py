@@ -62,7 +62,7 @@ def getFareyPath(path,maxN,d,k, convergents = False):
         return(farey, center, path)
     else:
         convergents = [farey[0]] if center < 0.5 else [farey[1]]
-        indices = [0]
+        # indices = [0]
         for i in range(1,len(farey)-1):
             # last mediant on one side of target is a convergent
             if ( (farey[i+1] - center) > 0 ) != ( (farey[i] - center) > 0 ):
@@ -347,7 +347,7 @@ def nobleSlopes():
     
 # plotDmax()
 
-nobleSlopes()
+# nobleSlopes()
 
 def examineDenominators(target = 1./sqrt(7)):
 
@@ -364,11 +364,27 @@ def examineDenominators(target = 1./sqrt(7)):
     show()    
         
     
+def checkMeasure(k = 2):
+    def sumPath(farey):
+        return sum([2*x.width for x in farey])
+    def plotPath(farey,color):
+        plot([2*x.width for x in farey],color=color)
+    cmap = cm.RdBu
+    for i in range(40):
+        path = 'RL'*20
+        path = path[:i] + 2*path[i] + path[i:]
+        farey, center, tmp = getFareyPath(path, 500, 0.2, k, convergents=False)
+        plotPath(farey, cmap(float(i)/40.))
+    # farey, center, tmp = getFareyPath(1/math.pi, 500, 0.2, 3, convergents=False)
+    # plotPath(farey,'g')
+    yscale('log')
+
+subplot(3,1,1)
+checkMeasure(1.5)
+subplot(3,1,2)
+checkMeasure(2)    
+subplot(3,1,3)
+checkMeasure(2.5)
+show()
     
-    
-    
-    
-    
-    
-    
-    
+nobleSlopes()
