@@ -157,6 +157,9 @@ def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, 
     
     # set initial conditions
     Bz, r, i = [1.2], [0], 0
+    pFull, pPrimeFull = [p[0]],[0]
+    
+
     
     while r[-1] <= 1:
         # do RK4 method for solving for Bz(r)
@@ -168,6 +171,9 @@ def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, 
         k4 = BzPrime(rNow+h,BzNow+h*k3,gradp[i])
         r.append(rNow+h)
         Bz.append(BzNow+h/6*(k1+2*k2+2*k3+k4))
+        pFull.append(p[i])
+        pPrimeFull.append(gradp[i])
+
         # Update counter if we pass an index for x, p, gradp
         if r[-1] >= x[i+1]:
             try:
@@ -184,7 +190,7 @@ def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, 
         Jz = 1/r*deriv(r*Btheta,r)
     
     return(r.tolist(), Bz.tolist(), Btheta.tolist(), 
-           Jtheta.tolist(), Jz.tolist(), x, p, gradp)
+           Jtheta.tolist(), Jz.tolist(), x, p, gradp, pFull, pPrimeFull)
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
@@ -266,15 +272,31 @@ def pressureAsymptotes():
     
 # makePlots()
 
-for d in [0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966, (3-math.sqrt(5))/2]:
-    r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(d,2,10,0.00001,fareyMethod='treeSteps')
-    subplot(1,2,1)
-    plot(x, [-1*i for i in gradp])
-    xlabel('x')
-    axis([0,1,-1.1,0.1])
-    subplot(1,2,2)
-    plot(x,np.asarray(p)/max(p))
-    xlabel('x')
-# axis([0,1,-0.01,0.2])
-legend([0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966],loc='best')
+# for d in [0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966, (3-math.sqrt(5))/2]:
+    # r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(d,2,10,0.00001,fareyMethod='treeSteps')
+    # subplot(1,2,1)
+    # plot(x, [-1*i for i in gradp])
+    # xlabel('x')
+    # axis([0,1,-1.1,0.1])
+    # subplot(1,2,2)
+    # plot(x,np.asarray(p)/max(p))
+    # xlabel('x')
+# # axis([0,1,-0.01,0.2])
+# legend([0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966],loc='best')
+# show()
+
+r, Bz, Btheta, Jtheta, Jz, x, p, gradp, pFull, pPrimeFull = cylinderB(0.15,2.1, 10, 0.00001, 
+                fareyMethod='treeSteps')
+subplot(2,1,1)
+plot(r,Bz,'b',r,Btheta,'r')
+subplot(2,1,2)
+scaledBz, scaledBtheta, scaledJz, scaledJtheta = [], [], [], []
+for i in range(len(Bz)):
+    if pFull[i] == 0:
+        scaledBz.append(0)
+        scaledBtheta.append(0)
+    else:
+        scaledBz.append(Bz[i]/pFull[i])
+        scaledBtheta.append(Btheta[i]/pFull[i])
+plot(r,scaledBz,'b',r,scaledBtheta,'r')
 show()
