@@ -2,6 +2,7 @@ from pylab import *
 import numpy as np
 from matplotlib import gridspec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from scipy.integrate import quad
     
 def integFractal(x,fractal):
     fxn = []
@@ -9,7 +10,7 @@ def integFractal(x,fractal):
         fxn.append(trapz(fractal[0:i],x[0:i]))
     return fxn
     
-def getP(d, k, nmax, fareyMethod = 'maxDen'): # returns x, p, gradp
+def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, gradp
 
     def integStepFxn(x,fxn):
         integral = [0]
@@ -89,8 +90,14 @@ def getP(d, k, nmax, fareyMethod = 'maxDen'): # returns x, p, gradp
     # Make list of all rationals to consider.
     fareyLevels = []
     if fareyMethod == 'maxDen':
+        if getN != False:
+            n = nmax
+            while len(farey(n)) < getN:
+                n = n + 1
+            nmax = n
         for n in range(2, nmax+1):
             fareyLevels.append(farey(n)-farey(n-1))
+
     elif fareyMethod == 'treeSteps':
         fareyAll = [(0,1),(1,1)]
         fareyLevels.append(set(fareyAll))
@@ -103,6 +110,7 @@ def getP(d, k, nmax, fareyMethod = 'maxDen'): # returns x, p, gradp
                 fareyAll.insert(i+count,newLevel[-1])
                 count += 1
             fareyLevels.append(set(newLevel))
+    nTot = sum([len(x) for x in fareyLevels]) # How many rationals are considered
                 
     # Loop over levels of Farey tree from 2 until nmax:
     for newregions in fareyLevels:
@@ -134,7 +142,7 @@ def getP(d, k, nmax, fareyMethod = 'maxDen'): # returns x, p, gradp
     xR = [x.high for x in cleanRegions]
     x, gradp = stepFxn(xL,xR,.0000001)
     p = integStepFxn(x,gradp)
-    return x, p, gradp
+    return x, p, gradp # , nTot
 
 def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
@@ -156,24 +164,42 @@ def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, 
         return BzP
     
     # set initial conditions
-    Bz, r, i = [1.2], [0], 0
+    B0 = 3.
+    Bz, r, i = [B0], [0], 0
+    BzNo, BzYes = [B0], [B0]
     pFull, pPrimeFull = [p[0]],[0]
     
-
+    
     
     while r[-1] <= 1:
         # do RK4 method for solving for Bz(r)
         h = min([x[i+1]-x[i],RKstep])
         rNow, BzNow = r[-1], Bz[-1]
+        BzNoNow, BzYesNow = BzNo[-1], BzYes[-1]
         k1 = BzPrime(rNow,BzNow,gradp[i])
         k2 = BzPrime(rNow+h/2,BzNow+h/2*k1,gradp[i])
         k3 = BzPrime(rNow+h/2,BzNow+h/2*k2,gradp[i])
         k4 = BzPrime(rNow+h,BzNow+h*k3,gradp[i])
+        
+        # find Bz(r) in instances of all gradp == 0, gradp == 1
+        # gradp == 0
+        k1no = BzPrime(rNow,BzNoNow,0)
+        k2no = BzPrime(rNow+h/2,BzNoNow+h/2*k1,0)
+        k3no = BzPrime(rNow+h/2,BzNoNow+h/2*k2,0)
+        k4no = BzPrime(rNow+h,BzNoNow+h*k3,0)
+        # gradp == 1
+        k1yes = BzPrime(rNow,BzYesNow,1)
+        k2yes = BzPrime(rNow+h/2,BzYesNow+h/2*k1,1)
+        k3yes = BzPrime(rNow+h/2,BzYesNow+h/2*k2,1)
+        k4yes = BzPrime(rNow+h,BzYesNow+h*k3,1)
+        
         r.append(rNow+h)
         Bz.append(BzNow+h/6*(k1+2*k2+2*k3+k4))
+        BzNo.append(BzNoNow+h/6*(k1no+2*k2no+2*k3no+k4no))
+        BzYes.append(BzYesNow+h/6*(k1yes+2*k2yes+2*k3yes+k4yes))
         pFull.append(p[i])
         pPrimeFull.append(gradp[i])
-
+        
         # Update counter if we pass an index for x, p, gradp
         if r[-1] >= x[i+1]:
             try:
@@ -190,7 +216,8 @@ def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, 
         Jz = 1/r*deriv(r*Btheta,r)
     
     return(r.tolist(), Bz.tolist(), Btheta.tolist(), 
-           Jtheta.tolist(), Jz.tolist(), x, p, gradp, pFull, pPrimeFull)
+           Jtheta.tolist(), Jz.tolist(), x, p, gradp, pFull, pPrimeFull,
+           BzNo, BzYes)
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
@@ -269,9 +296,84 @@ def pressureAsymptotes():
     xlabel('Farey tree level')
     ylabel('Peak pressure')
     show()
+
+# Show convergence to some max(p) with Farey ordering, maxDen ordering
+def rationalOrdering():
+    d = 0.15
+    k = 2
+    maxLevel = 15
+    nFarey, fareyMax, nDen, denMax = [], [], [], []
+    for nmax in range(1,maxLevel):
+        x, p, gradp, nTotFarey = getP(d, k, nmax, 'treeSteps')
+        fareyMax.append(max(p))
+        nFarey.append(nTotFarey)
+        x, p, gradp, nTotDen = getP(d, k, nmax, 'maxDen', nTotFarey)
+        denMax.append(max(p))
+        nDen.append(nTotDen)
+        print(nTotFarey, nTotDen)
+    plot(nFarey,fareyMax,'bx', nDen, denMax, 'rx')
+    xscale('log')
+    show()
+    
+def streamsBz():
+
+    R = 2
+
+    def iota(r):
+        return 1-7*r**2/8.
+        
+    def iotaPrime(r):
+        return -7*r/4.
+
+    def BzPrime(r, Bz, gradp):
+        BzP = -(R**2 + iota(r)**2 * r**2)**-1 * (gradp * R**2 / Bz + \
+            Bz * (r**2 * iota(r) * iotaPrime(r) + 2 * r * iota(r)**2) )
+        return BzP
+    
+    def Sprime(r, S):
+        Sp = -(r**2 * iota(r) * iotaPrime(r) + 2*r*iota(r)**2)/(R**2 + r**2 * iota(r)**2) * S
+        return Sp
+        
+    def Fprime(r, S, F, gradp):
+        Fp = -R**2*gradp/((R**2 + iota(r)**2 * r**2)*S**2)/F
+        return Fp
+    
+    size = 15
+    r = np.linspace(0,1,size)
+    Bz = np.linspace(0,3,size)
+    S = Bz
+    F = Bz
+    Rad, BZgrid = np.meshgrid(r,Bz)
+    
+    BzPNo = BzPrime(Rad,BZgrid,0)
+    BzPYes = BzPrime(Rad,BZgrid,1)
+    dx = np.ones((size,size))
+    SP = Sprime(Rad, BZgrid)
+    FP = Fprime(Rad, BZgrid, BZgrid, 1)
+    
+    subplot(3,1,1)
+    quiver(Rad,BZgrid,dx,BzPNo, color='k', headwidth=2.3, label=r'$\nabla p = 0$')
+    quiver(Rad,BZgrid,dx,BzPYes,color='r', headwidth=2.3, label=r'$\nabla p = 1$')
+    plot([0],[0],'k',[0],[0],'r')
+    leg = legend([r'$\nabla p = 0$',r'$\nabla p = 1$'],numpoints=1,fontsize=20)
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='r')
+    xlabel(r'$r$',fontsize=20)
+    ylabel(r'$B_z$',fontsize=20)
+    
+    subplot(3,1,2)
+    streamplot(Rad,BZgrid,dx,SP, color='g') # headwidth=2.3, label=r'$\nabla p = 0$')
+    subplot(3,1,3)
+    streamplot(Rad,BZgrid,dx,FP,color='b') #headwidth=2.3, label=r'$\nabla p = 1$')
+
+    
+    show()
+    
     
 # makePlots()
 
+# Show "honing in" on golden mean as d increases towards critical value
+# 
 # for d in [0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966, (3-math.sqrt(5))/2]:
     # r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(d,2,10,0.00001,fareyMethod='treeSteps')
     # subplot(1,2,1)
@@ -285,18 +387,61 @@ def pressureAsymptotes():
 # legend([0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966],loc='best')
 # show()
 
-r, Bz, Btheta, Jtheta, Jz, x, p, gradp, pFull, pPrimeFull = cylinderB(0.15,2.1, 10, 0.00001, 
+# Shows how Bz is bound between gradP = 1 case and gradP = 0
+
+r, Bz, Btheta, Jtheta, Jz, x, p, gradp, pFull, pPrimeFull, BzNo, BzYes = cylinderB(0.12,2, 10, 0.00001, 
                 fareyMethod='treeSteps')
-subplot(2,1,1)
-plot(r,Bz,'b',r,Btheta,'r')
-subplot(2,1,2)
-scaledBz, scaledBtheta, scaledJz, scaledJtheta = [], [], [], []
-for i in range(len(Bz)):
-    if pFull[i] == 0:
-        scaledBz.append(0)
-        scaledBtheta.append(0)
+
+rOn, BzOn, rOff, BzOff = [], [], [], []
+rF, F = [], [1]
+for i in range(len(r)):
+    if pPrimeFull[i] == 0:
+        rOff.append(r[i])
+        BzOff.append(Bz[i])
+        rF.append(r[i])
+        F.append(F[-1])
     else:
-        scaledBz.append(Bz[i]/pFull[i])
-        scaledBtheta.append(Btheta[i]/pFull[i])
-plot(r,scaledBz,'b',r,scaledBtheta,'r')
+        rOn.append(r[i])
+        BzOn.append(Bz[i])
+
+def iota(r):
+    return 1-7*r**2/8.
+        
+def iotaPrime(r):
+    return -7*r/4.
+
+def smoothFunction(x):
+    def integrand(r):
+        R = 3.
+        return ((r**2 * iota(r) * iotaPrime(r) + 2*r*iota(r)**2)/(R**2 + r**2 * iota(r)**2))
+    R = 3.
+    math.exp(-1*float(quad(lambda r:(r**2*iota(r)*iotaPrime(r)+2*r*iota(r)**2)/(R**2+r**2*iota(r)**2), 0., x)[0]))
+
+R = 3
+print(quad(lambda k:(k**2*iota(k)*iotaPrime(k)+2*k*iota(k)**2)/(R**2+k**2*iota(k)**2), 0., x))
+plot(r,smoothFunction(r))
 show()
+    
+F = F[1:]
+plot(rOn,np.asarray(BzOn)+0.02,'b.',markersize=1,label=r"$\nabla p = 1$")
+plot(rOff,BzOff,'r.',markersize=1,label=r"$\nabla p = 0$")
+plot(rF, F, 'g.',markersize=1,label='Fractal part')
+legend()
+show()
+
+                
+# subplot(2,1,1)
+# plot(r,Bz,'b',r,Btheta,'r')
+# plot(r,BzNo,'k--',r,BzYes,'g--')
+# subplot(2,1,2)
+# scaledBz, scaledBtheta, scaledJz, scaledJtheta = [], [], [], []
+# for i in range(len(Bz)):
+    # if pFull[i] == 0:
+        # scaledBz.append(0)
+        # scaledBtheta.append(0)
+    # else:
+        # scaledBz.append(Bz[i]/(pFull[i]))
+        # scaledBtheta.append(Btheta[i]/pFull[i])
+# plot(r,scaledBz,'b',r,scaledBtheta,'r')
+# plot(r,BzNo,'k--',r,BzYes,'g--')
+# show()
