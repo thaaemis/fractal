@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib import gridspec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy.integrate import quad
+from scipy.interpolate import interp1d
     
 def integFractal(x,fractal):
     fxn = []
@@ -147,7 +148,7 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
 def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
     
-def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
+def cylinderB(d,k,nmax,RKstep,R=1.,fareyMethod = 'maxDen'): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     
     x, p, gradp = getP(d, k, nmax, fareyMethod = fareyMethod)
     p.reverse()
@@ -164,7 +165,7 @@ def cylinderB(d,k,nmax,RKstep,R=2.,fareyMethod = 'maxDen'): # returns iota, Bz, 
         return BzP
     
     # set initial conditions
-    B0 = 3.
+    B0 = 1.
     Bz, r, i = [B0], [0], 0
     BzNo, BzYes = [B0], [B0]
     pFull, pPrimeFull = [p[0]],[0]
@@ -340,7 +341,7 @@ def streamsBz():
     
     size = 15
     r = np.linspace(0,1,size)
-    Bz = np.linspace(0,3,size)
+    Bz = np.linspace(0,1,size)
     S = Bz
     F = Bz
     Rad, BZgrid = np.meshgrid(r,Bz)
@@ -350,7 +351,8 @@ def streamsBz():
     dx = np.ones((size,size))
     SP = Sprime(Rad, BZgrid)
     FP = Fprime(Rad, BZgrid, BZgrid, 1)
-    
+    FP0 = Fprime(Rad, BZgrid, BZgrid, 0)
+
     subplot(3,1,1)
     quiver(Rad,BZgrid,dx,BzPNo, color='k', headwidth=2.3, label=r'$\nabla p = 0$')
     quiver(Rad,BZgrid,dx,BzPYes,color='r', headwidth=2.3, label=r'$\nabla p = 1$')
@@ -364,11 +366,11 @@ def streamsBz():
     subplot(3,1,2)
     streamplot(Rad,BZgrid,dx,SP, color='g') # headwidth=2.3, label=r'$\nabla p = 0$')
     subplot(3,1,3)
-    streamplot(Rad,BZgrid,dx,FP,color='b') #headwidth=2.3, label=r'$\nabla p = 1$')
-
+    quiver(Rad,BZgrid,dx*300,FP,color='b', headwidth=2, label=r'$\nabla p = 1$')
+    quiver(Rad,BZgrid,dx*1,FP0,color='k', headwidth=2, label=r'$\nabla p = 1$')
     
     show()
-    
+# streamsBz()
     
 # makePlots()
 
@@ -389,45 +391,125 @@ def streamsBz():
 
 # Shows how Bz is bound between gradP = 1 case and gradP = 0
 
-r, Bz, Btheta, Jtheta, Jz, x, p, gradp, pFull, pPrimeFull, BzNo, BzYes = cylinderB(0.12,2, 10, 0.00001, 
-                fareyMethod='treeSteps')
+def plotBzSF(plots=False):
+    rad, Bz, Btheta, Jtheta, Jz, x, p, gradp, pFull, pPrimeFull, BzNo, BzYes = cylinderB(0.12,2, 10, 0.00001, 
+                    fareyMethod='treeSteps')
 
-rOn, BzOn, rOff, BzOff = [], [], [], []
-rF, F = [], [1]
-for i in range(len(r)):
-    if pPrimeFull[i] == 0:
-        rOff.append(r[i])
-        BzOff.append(Bz[i])
-        rF.append(r[i])
-        F.append(F[-1])
+    def iota(r):
+        return 1-7*r**2/8.
+            
+    def iotaPrime(r):
+        return -7*r/4.
+
+    def smoothFunction(x):
+        R = 1.
+        integ = quad(lambda r:(r**2*iota(r)*iotaPrime(r)+2*r*iota(r)**2)/(R**2+r**2*iota(r)**2), 0., x)[0]
+        return math.exp(-1*float(integ))
+
+    smoothFxn = np.asarray([smoothFunction(a) for a in rad])
+    fractalFxn = Bz/smoothFxn
+
+
+    plot(rad,Bz,'b',label=r'$B_z(r)$')
+    plot(rad,smoothFxn,'g',label=r'$S(r)$')
+    plot(rad,fractalFxn,'r',label=r'$F(r)$')
+    leg=legend(fontsize=20,loc="best")
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='b')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='g')
+    tmp = leg.get_texts()[2]
+    setp(tmp, color='r')
+    xlabel(r'$r$',fontsize=25)
+    tick_params(axis='both', which='major', labelsize=20)
+    axis([0,1,0.41,1.09])
+    if plots:
+        show()
+    else: 
+        clf()
+
+    pInterp = interp1d(x, np.asarray(p)+(1-max(p)))
+    maxBz = max(Bz)
+    rad[-1] = 1.
+    plot(rad,fractalFxn/maxBz, 'r', x, np.asarray(p)+(1-max(p)),'k',rad,pInterp(rad)/fractalFxn*maxBz,'c')
+    xlabel(r'$r$',fontsize=20)
+    if plots:
+        show()
     else:
-        rOn.append(r[i])
-        BzOn.append(Bz[i])
+        clf()
 
-def iota(r):
-    return 1-7*r**2/8.
-        
-def iotaPrime(r):
-    return -7*r/4.
-
-def smoothFunction(x):
-    def integrand(r):
-        R = 3.
-        return ((r**2 * iota(r) * iotaPrime(r) + 2*r*iota(r)**2)/(R**2 + r**2 * iota(r)**2))
-    R = 3.
-    math.exp(-1*float(quad(lambda r:(r**2*iota(r)*iotaPrime(r)+2*r*iota(r)**2)/(R**2+r**2*iota(r)**2), 0., x)[0]))
-
-R = 3
-print(quad(lambda k:(k**2*iota(k)*iotaPrime(k)+2*k*iota(k)**2)/(R**2+k**2*iota(k)**2), 0., x))
-plot(r,smoothFunction(r))
-show()
+    Fprime = deriv(fractalFxn/maxBz,rad)
+    gradPInterp = interp1d(x,np.asarray(gradp))
+    plot(rad,-1*np.asarray(pPrimeFull),'k.',markersize=0.5,label=r"$p'(r)$")
+    # plot(rad,Fprime,'r.',markersize=1,label=r"$F'(r)$")
+    FprimeHighPts = [a for a in Fprime if a < -0.1]
+    rHighPts = [rad[a] for a in range(len(Fprime)) if Fprime[a] < -0.1]
+    plot(rHighPts,FprimeHighPts,'r.',markersize=1,label=r"Irrational points of $F'(r)$")
+    leg=legend(fontsize=20,loc="best",numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='k')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='r')
+    xlabel(r'$r$',fontsize=25)
+    tick_params(axis='both', which='major', labelsize=20)
+    if plots:
+        show()
+    else:
+        clf()
     
-F = F[1:]
-plot(rOn,np.asarray(BzOn)+0.02,'b.',markersize=1,label=r"$\nabla p = 1$")
-plot(rOff,BzOff,'r.',markersize=1,label=r"$\nabla p = 0$")
-plot(rF, F, 'g.',markersize=1,label='Fractal part')
-legend()
-show()
+    plot(rad,Btheta,'b',label=r"$B_\theta(r)$")
+    plot(rad,Btheta/fractalFxn,'g',label=r"$S_\theta(r)$")
+    leg=legend(fontsize=20,loc="best",numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='b')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='g')
+    xlabel(r'$r$',fontsize=25)
+    tick_params(axis='both', which='major', labelsize=20)
+    if plots:
+        show()
+    else:
+        clf()
+    
+    rRatio, Jzratio, Jthetaratio = [], [], []
+    for i in range(len(Jz)):
+        if abs(Fprime[i]) >  0.1:
+            Jzratio.append(-1*Jz[i]/Fprime[i])
+            Jthetaratio.append(-1*Jtheta[i]/Fprime[i])
+            rRatio.append(rad[i])
+    subplot(1,2,1)
+    plot(rad, Jz, 'b.',label=r'$J_z(r)$',markersize=2)
+    plot(rRatio, Jzratio, 'k.',markersize=2, label=r"$J_z/F'(r)$")
+    xlabel(r'$r$',fontsize=25)
+    leg=legend(loc='best',numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='b')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='k')
+    tick_params(axis='both', which='major', labelsize=20)
+
+    subplot(1,2,2)
+    plot(rad, Jtheta, 'r.', label=r'$J_\theta(r)$',markersize=2)
+    plot(rRatio, Jthetaratio, 'g.', markersize=2, label=r"$J_\theta/F'(r)$")
+    tick_params(axis='both', which='major', labelsize=20)
+
+    xlabel(r'$r$',fontsize=25)
+    leg=legend(loc='best',numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='r')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='g')
+
+    show()
+plotBzSF()
+
+    
+# F = F[1:]
+# plot(rOn,np.asarray(BzOn)+0.02,'b.',markersize=1,label=r"$\nabla p = 1$")
+# plot(rOff,BzOff,'r.',markersize=1,label=r"$\nabla p = 0$")
+# plot(rF, F, 'g.',markersize=1,label='Fractal part')
+# legend()
+# show()
 
                 
 # subplot(2,1,1)
