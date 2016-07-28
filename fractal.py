@@ -11,6 +11,13 @@ def integFractal(x,fractal):
         fxn.append(trapz(fractal[0:i],x[0:i]))
     return fxn
     
+def iota(r):
+    return 1-7*r**2/8.
+def iotaPrime(r):
+    return -7*r/4.
+def iotaInverse(iota):
+    return 1-(abs(1-iota)*8./7.)**0.5
+    
 def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, gradp
 
     def integStepFxn(x,fxn):
@@ -21,23 +28,23 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
         integral.pop()
         return integral    
 
-    def stepFxn(xL,xR,epsilon):
+    def stepFxn(xL,xR):
         xL = xL[1:] # trim irrelevant start point
         xR = xR[0:-1] #trim irrelevant end point
         x, fxn = [0], [0]
         for i in range(0,len(xR)):
             # Stay zero
             fxn.append(0)
-            x.append(xR[i]) #-epsilon)
+            x.append(xR[i])
             # Jump to 1
             fxn.append(1)
-            x.append(xR[i]) #+epsilon)
+            x.append(xR[i])
             #Stay 1
             fxn.append(1)
-            x.append(xL[i]) #-epsilon)
+            x.append(xL[i])
             # Jump to 0
             fxn.append(0)
-            x.append(xL[i]) #+epsilon)
+            x.append(xL[i])
         x.append(1)
         fxn.append(0)
         return x,fxn
@@ -139,14 +146,18 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
     # ylim(1,nmax+1)
     # show()
     
-    xL = [x.low  for x in cleanRegions]
-    xR = [x.high for x in cleanRegions]
-    x, gradp = stepFxn(xL,xR,.0000001)
+    iotaL = [x.low  for x in cleanRegions]
+    iotaR = [x.high for x in cleanRegions]
+    rL = [iotaInverse(x.low)  for x in cleanRegions]
+    rR = [iotaInverse(x.high) for x in cleanRegions]
+    x, gradp = stepFxn(rL,rR)
     p = integStepFxn(x,gradp)
-    return x, p, gradp # , nTot
+    return x, p, gradp
 
+    
 def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
+
     
 def cylinderB(d,k,nmax,RKstep,R=1.,fareyMethod = 'maxDen'): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     
@@ -154,10 +165,6 @@ def cylinderB(d,k,nmax,RKstep,R=1.,fareyMethod = 'maxDen'): # returns iota, Bz, 
     p.reverse()
     gradp.reverse()
     
-    def iota(r):
-        return 1-7*r**2/8.
-    def iotaPrime(r):
-        return -7*r/4.
     
     def BzPrime(r, Bz, gradp):
         BzP = -(R**2 + iota(r)**2 * r**2)**-1 * (gradp * R**2 / Bz + \
@@ -320,12 +327,6 @@ def streamsBz():
 
     R = 2
 
-    def iota(r):
-        return 1-7*r**2/8.
-        
-    def iotaPrime(r):
-        return -7*r/4.
-
     def BzPrime(r, Bz, gradp):
         BzP = -(R**2 + iota(r)**2 * r**2)**-1 * (gradp * R**2 / Bz + \
             Bz * (r**2 * iota(r) * iotaPrime(r) + 2 * r * iota(r)**2) )
@@ -395,12 +396,6 @@ def plotBzSF(plots=False):
     rad, Bz, Btheta, Jtheta, Jz, x, p, gradp, pFull, pPrimeFull, BzNo, BzYes = cylinderB(0.12,2, 10, 0.00001, 
                     fareyMethod='treeSteps')
 
-    def iota(r):
-        return 1-7*r**2/8.
-            
-    def iotaPrime(r):
-        return -7*r/4.
-
     def smoothFunction(x):
         R = 1.
         integ = quad(lambda r:(r**2*iota(r)*iotaPrime(r)+2*r*iota(r)**2)/(R**2+r**2*iota(r)**2), 0., x)[0]
@@ -424,10 +419,21 @@ def plotBzSF(plots=False):
     tick_params(axis='both', which='major', labelsize=20)
     axis([0,1,0.41,1.09])
     if plots:
-        show()
+      show()
     else: 
         clf()
-
+    
+    
+    a = pPrimeFull/deriv(fractalFxn**2/2.,rad)
+    indices = []
+    for i in range(len(a)):
+        if abs(a[i]) < 2:
+            indices.append(i)
+    
+    
+    plot(np.asarray(rad)[indices],np.asarray(a)[indices],'r')
+    show()
+        
     pInterp = interp1d(x, np.asarray(p)+(1-max(p)))
     maxBz = max(Bz)
     rad[-1] = 1.
@@ -499,8 +505,10 @@ def plotBzSF(plots=False):
     setp(tmp, color='r')
     tmp = leg.get_texts()[1]
     setp(tmp, color='g')
-
-    show()
+    if plots:
+        show()
+    else:
+        clf()
 plotBzSF()
 
     
