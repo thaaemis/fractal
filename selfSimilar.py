@@ -388,11 +388,11 @@ def plotMeasure():
     checkMeasure(2.5)
     show()
     
-farey, center, tmp = getFareyPath(1/math.pi, 500, 0.2, k=3)
-piVals = []
-for i in farey:
-    print(i, abs(i.val - center), i.width, i.width/abs(i.val-center))
-    piVals.append(i.width/abs(i.val-center))
-plot(piVals)
-yscale('log')
-show()
+# farey, center, tmp = getFareyPath(1/math.pi, 500, 0.2, k=3)
+# piVals = []
+# for i in farey:
+    # print(i, abs(i.val - center), i.width, i.width/abs(i.val-center))
+    # piVals.append(i.width/abs(i.val-center))
+# plot(piVals)
+# yscale('log')
+# show()

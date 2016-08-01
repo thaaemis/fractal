@@ -509,7 +509,7 @@ def plotBzSF(plots=False):
         show()
     else:
         clf()
-plotBzSF()
+# plotBzSF()
 
     
 # F = F[1:]
