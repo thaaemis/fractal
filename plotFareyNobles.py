@@ -1,3 +1,7 @@
+# To do in this code:
+# put all PLOTTING functions in Tkinter module description.Regularize everything.s
+
+
 import matplotlib, math, itertools
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -18,7 +22,7 @@ def CFtoVal(CFarray):
         val = 1/(float(element)+val)
     return val
 
-def valtoCF(val, stepsMax = 100):
+def valtoCF(val, stepsMax = 1E5):
     CF = []
     while True:
         CF.append(math.floor(1/val))
@@ -27,68 +31,64 @@ def valtoCF(val, stepsMax = 100):
             break
     return CF
 
-def plotLine(value,axisoffset=0., d = 0.15,k = 2., 
+def plotLine(CF,axisoffset=0., d = 0.15,k = 2., 
     cmap = matplotlib.cm.ScalarMappable(cmap='spectral'), axisLog = False):
-    if axisLog == True:
-        axisoffset = (math.sqrt(5)-1)/2.
-    
-    try:
-        len(value)
-        CF = value
-        value = CFtoVal(value)
-    except TypeError:
-        value = float(value)
-        CF = [0]
-        
-    # maxN = 100
-    # convergents = False
-    # farey, center, pathOut = getFareyPath(value, maxN, d, k, convergents)
 
-    def getRational(CFelements, d, k):
-        n, m = [0, 1], [1, 1] #num and denominator of 0/1, 1/1
-        for i in range(len(CFelements)):
-            n.append(CFelements[i] * n[i+1] + n[i])
-            m.append(CFelements[i] * m[i+1] + m[i])
-        return rational(n[-1], m[-1], d, k)
+    def getNextRational(element, fareyList, d, k):
+        n = element * fareyList[-1].num + fareyList[-2].num
+        m = element * fareyList[-1].den + fareyList[-2].den
+        return rational(n, m, d, k)
         
-    
-    farey = []
+    CF = [float(c) for c in CF]
+    farey = [rational(1,0,d,k), rational(0,1,d,k)] # initiate
+    if (CF[-1] != 1.0):
+        CF[-1] = float(CF[-1])-1
+        CF.append(1.)
+
     for i in range(len(CF)):
-        
-    
+        a = getNextRational(int(CF[i]),farey,d,k)
+        farey.append(a)
+
     for j in range(len(farey)-1):
-        if len(CF) == 0:
-            maxBound = max(valtoCF(farey[j+1].val))
-        else:
-            maxBound = max(CF[:j]) if j > 0 else 1
+        maxBound = max(CF[:j]) if j > 0 else 1
         color = cmap.to_rgba(maxBound) # if cmap.norm == None else cmap(maxBound/10)
         plt.plot([i.val-axisoffset for i in farey[j:j+2]],
-                [i.den for i in farey[j:j+2]],color=color)
+                [i.den for i in farey[j:j+2]],color=color,linewidth=1)
         (diophantineMin, diophantineMax) = farey[j+1].diophantine
         plt.plot([diophantineMin-axisoffset,diophantineMax-axisoffset],
                 [farey[j+1].den]*2,
                 color = color, linewidth=4)
-        plt.yscale('log',basey=10)
-        
-        plt.axis([0,1,0.9,1e3])
-    if axisLog:
-        plt.xscale('log')#,linthreshx=1e-7)
-        plt.axis([-1,1,0.9,1e3])
+    
+    # print(CF, farey)
+    
+    return farey
         
 goldenMean = valtoCF((math.sqrt(5)-1)/2)
 # print([index for index,value in enumerate(goldenMean) if value > 1])
 
-def makeAlltoN(d=0.2,kHere=2., nmax=10, length=10, axisLog = False):
+def makeAlltoN(d=0.2,kHere=2., nmax=10, length=10, axisOffset = 0):
     norm = matplotlib.colors.LogNorm(vmin = 1, vmax = 10)
     plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1000e3, 10001e3])
     # ax1 = plt.colorbar(label='Max Element in CF')
     colorMap = matplotlib.cm.ScalarMappable(norm=norm, cmap='spectral')
-
+    
     iteration = itertools.product(np.arange(1,nmax+1), repeat=length)
+    els, fareyVals = [], []
     for i in reversed(list(iteration)):
         elements = [float(g) for g in i]
-        plotLine(elements,d=d,k=kHere,cmap = colorMap, axisLog=axisLog)
-        
+        els.append(elements)
+        fareyVals.append(plotLine(elements,d=d,k=kHere,cmap = colorMap, 
+            axisoffset = axisOffset))
+        elements.insert(0,1.0)
+        els.append(elements)
+        fareyVals.append(plotLine(elements,d=d,k=kHere,cmap = colorMap, 
+            axisoffset = axisOffset))
+        elements = elements[1:]
+        elements[0] = float(nmax+1)
+        els.append(elements)
+        fareyVals.append(plotLine(elements,d=d,k=kHere,cmap = colorMap, 
+            axisoffset = axisOffset))
+
 def plotAssortment(offset = 0, d = 0.15, k = 2, path = None, axisLog = False):
     if axisLog == True:
         offset = (math.sqrt(5)-1)/2.
@@ -121,16 +121,29 @@ def plotAssortment(offset = 0, d = 0.15, k = 2, path = None, axisLog = False):
         plotLine([1]*100,axisoffset=offset, d = d, k = k, axisLog = axisLog)
     else:
         plotLine(path, axisoffset = offset, d = d, k = k, axisLog = axisLog)
-def module():
 
+def restartPlot(restart = True):
+    
+    fig1 = plt.figure(1)
+    if restart:
+        plt.clf()
     norm = matplotlib.colors.LogNorm(vmin = 1, vmax = 10)
     colorMap = matplotlib.cm.ScalarMappable(norm=norm, cmap='spectral')
-    fig1 = plt.figure(1)
-    plt.clf()
     plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1000e3, 10001e3])
     ax1 = plt.colorbar(label='Max Element in CF')
-
     
+    axisOffset = 0
+    
+    plt.yscale('log',basey=10)
+    plt.axis([0,1,0.9,1e3])
+    plt.gca().invert_yaxis()
+    
+    return fig1, colorMap, axisOffset
+
+def module():
+
+    fig1, colorMap, axisOffset = restartPlot(True)
+        
     top = Tk()
     allLabels = Label(top,text="Insert parameters d and k")
     allLabels.grid(row=0, column=0,
@@ -148,19 +161,30 @@ def module():
 
     kInput.insert(0,2.0)
     
-    axisLogBool = IntVar()
-    axisLog = Checkbutton(top, text="x-axis symlog?",
-        variable = axisLogBool)
-    axisLog.grid(row=7,column=0)
-    axisSubmit = Button(top, text="Submit axis change", command=plt.clf)
-    axisSubmit.grid(row=7,column=1)
+    def makeLog():
+        plt.yscale('log')
+        plt.gca().invert_yaxis()
+        plt.xscale('symlog',linthreshx = 1e-7)
+        axisOffset = (math.sqrt(5)-1)/2.
+
+    def makeLin():
+        plt.yscale('log')
+        plt.gca().invert_yaxis()
+        plt.xscale('linear')
+        axisOffset = 0
+
+
+    axisLogSubmit = Button(top, text="Xscale: symlog", command=makeLog)
+    axisLogSubmit.grid(row=7,column=1)
+    axisLinSubmit = Button(top, text="Xscale: linear", command=makeLog)
+    axisLinSubmit.grid(row=7,column=2)
 
         
     makeButton = Button(top, text="Generate many values",
         command = lambda: plotAssortment(d=float(dInput.get()), 
                                          k=float(kInput.get()),
                                          axisLog=axisLogBool.get()))
-    makeButton.grid(row=0,column=2, rowspan=2)
+    # makeButton.grid(row=0,column=2, rowspan=2)
 
     dividerLabel1 = Label(top,text="  ")
     dividerLabel1.grid(row=2,column=0)
@@ -172,7 +196,7 @@ def module():
     submitPathButton = Button(top,text="Add Value", command=
         lambda: plotLine(CFinput.get().split(','),
             d = float(dInput.get()), k=float(kInput.get()),
-            cmap = colorMap,axisLog = axisLogBool.get()))
+            cmap = colorMap,axisoffset=axisOffset))
     submitPathButton.grid(row=3,column=2)
     
     dividerLabel2 = Label(top,text="  ")
@@ -188,7 +212,7 @@ def module():
     submitTreeButton = Button(top, text="Add Tree",
         command=lambda: makeAlltoN(d = float(dInput.get()),
             kHere = float(kInput.get()), nmax = int(nmaxInput.get()),
-            length = int(lengthInput.get()),axisLog = axisLogBool.get()))
+            length = int(lengthInput.get()),axisOffset = axisOffset))
     submitTreeButton.grid(row=6, column=0,columnspan=3)
 
     
@@ -212,7 +236,7 @@ def module():
         command = includeFig)
     showButton.grid(row=9,column=0,columnspan=3)
         
-    Button(top, text="Quit", command = top.destroy).grid(row=9,column=1,columnspan=3)
+    Button(top, text="Quit", command = top.quit).grid(row=9,column=1,columnspan=3)
     top.mainloop()
 
 module()

@@ -5,8 +5,12 @@ class rational:
     def __init__(self,num,den,d,k):
         self.num = int(num)
         self.den = int(den)
-        self.val = float(num)/float(den)
-        self.width = d/self.den**k
+        try:
+            self.val = float(num)/float(den)
+            self.width = d/self.den**k
+        except ZeroDivisionError:
+            self.val = float("inf")
+            self.width = float("inf")
         self.diophantine = (self.val - self.width, self.val + self.width)
     
     def __lt__(self,other):
