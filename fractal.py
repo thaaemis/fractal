@@ -17,7 +17,55 @@ def iotaPrime(r):
     return -7*r/4.
 def iotaInverse(iota):
     return 1-(abs(1-iota)*8./7.)**0.5
-    
+   
+# Make list of all rationals to consider.
+def rationalList(nmax, fareyMethod='treeSteps',inOrder=False):
+    def farey( n, asc=True ): # give all rationals for nth farey tree
+        """Python function to print the nth Farey sequence, either ascending or descending."""
+        row = set()
+        if asc: 
+            a, b, c, d = 0, 1,  1 , n     # (*)
+        else:
+            a, b, c, d = 1, 1, n-1, n     # (*)
+        row.add((a,b))
+        while (asc and c <= n) or (not asc and a > 0):
+            k = int((n + b)/d)
+            a, b, c, d = c, d, k*c - a, k*d - b
+            row.add((a,b))
+        return row
+        
+    def sortFarey(farey):
+        fareyVals = [float(x[0])/float(x[1]) for x in farey]
+        indices = np.argsort(fareyVals)
+        return np.asarray(farey)[indices]
+        
+    fareyLevels = []
+    if fareyMethod == 'maxDen':
+        if getN != False:
+            n = nmax
+            while len(farey(n)) < getN:
+                n = n + 1
+            nmax = n
+        for n in range(2, nmax+1):
+            fareyLevels.append(farey(n)-farey(n-1))
+
+    elif fareyMethod == 'treeSteps':
+        fareyAll = [(0,1),(1,1)]
+        fareyLevels.append(set(fareyAll))
+        for n in range(nmax+1):
+            newLevel, count = [], 1
+            fareyAllCopy = [x for x in fareyAll]
+            # newLevel.append(fareyAll[i])
+            for i in range(len(fareyAll)-1):
+                newLevel.append((fareyAllCopy[i][0]+fareyAllCopy[i+1][0],fareyAllCopy[i][1]+fareyAllCopy[i+1][1]))
+                fareyAll.insert(i+count,newLevel[-1])
+                count += 1
+            fareyLevels.append(set(newLevel))
+    if not inOrder:
+        return fareyLevels
+    else:
+        return sortFarey(fareyAll)
+        
 def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, gradp
 
     def integStepFxn(x,fxn):
@@ -49,19 +97,6 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
         fxn.append(0)
         return x,fxn
 
-    def farey( n, asc=True ): # give all rationals for nth farey tree
-        """Python function to print the nth Farey sequence, either ascending or descending."""
-        row = set()
-        if asc: 
-            a, b, c, d = 0, 1,  1 , n     # (*)
-        else:
-            a, b, c, d = 1, 1, n-1, n     # (*)
-        row.add((a,b))
-        while (asc and c <= n) or (not asc and a > 0):
-            k = int((n + b)/d)
-            a, b, c, d = c, d, k*c - a, k*d - b
-            row.add((a,b))
-        return row
 
     class window:
         def __init__(self,n,m,d,k):
@@ -95,29 +130,8 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
     # Define initial regions: clean = no overlaps.
     cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
     
-    # Make list of all rationals to consider.
-    fareyLevels = []
-    if fareyMethod == 'maxDen':
-        if getN != False:
-            n = nmax
-            while len(farey(n)) < getN:
-                n = n + 1
-            nmax = n
-        for n in range(2, nmax+1):
-            fareyLevels.append(farey(n)-farey(n-1))
-
-    elif fareyMethod == 'treeSteps':
-        fareyAll = [(0,1),(1,1)]
-        fareyLevels.append(set(fareyAll))
-        for n in range(nmax+1):
-            newLevel, count = [], 1
-            fareyAllCopy = [x for x in fareyAll]
-            # newLevel.append(fareyAll[i])
-            for i in range(len(fareyAll)-1):
-                newLevel.append((fareyAllCopy[i][0]+fareyAllCopy[i+1][0],fareyAllCopy[i][1]+fareyAllCopy[i+1][1]))
-                fareyAll.insert(i+count,newLevel[-1])
-                count += 1
-            fareyLevels.append(set(newLevel))
+    # list of Farey rationals
+    fareyLevels = rationalList(nMax, fareyMethod)
     nTot = sum([len(x) for x in fareyLevels]) # How many rationals are considered
                 
     # Loop over levels of Farey tree from 2 until nmax:

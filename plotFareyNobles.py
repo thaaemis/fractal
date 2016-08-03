@@ -1,16 +1,20 @@
 # To do in this code:
 # put all PLOTTING functions in Tkinter module description.Regularize everything.s
-
+# Plot convergent lines VS. direct Farey lines 
+# How to finally fix color normalization all the way through (L/R asymmetry)
 
 import matplotlib, math, itertools
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import numpy as np
-from fractal import getP
+from fractal import getP, rationalList
 from selfSimilar import rational, makeFractionList, getFareyPath
 from Tkinter import *
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
+import sys
+sys.path.insert(0, '/home/brian/GitHub/colormap/')
+import colormaps as cmaps
 
 phi = (math.sqrt(5)-1)/2.
 
@@ -31,13 +35,23 @@ def valtoCF(val, stepsMax = 1E5):
             break
     return CF
 
+def Brjuno(fareyList, j):
+    fareyList = fareyList[1:]
+    val, n = 0, 0
+    while j+n < len(fareyList):
+        val += math.log(fareyList[n+j].den)/fareyList[n].den
+        n += 1
+    return val
+    
+
 def plotLine(CF,axisoffset=0., d = 0.15,k = 2., 
-    cmap = matplotlib.cm.ScalarMappable(cmap='spectral'), axisLog = False):
+    cmap = matplotlib.cm.ScalarMappable(cmap=cmaps.viridis), axisLog = False):
 
     def getNextRational(element, fareyList, d, k):
         n = element * fareyList[-1].num + fareyList[-2].num
         m = element * fareyList[-1].den + fareyList[-2].den
         return rational(n, m, d, k)
+        
         
     CF = [float(c) for c in CF]
     farey = [rational(1,0,d,k), rational(0,1,d,k)] # initiate
@@ -45,32 +59,69 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
         CF[-1] = float(CF[-1])-1
         CF.append(1.)
 
+    nMax, fareySequence = 4, []
+    neighbors = []
     for i in range(len(CF)):
         a = getNextRational(int(CF[i]),farey,d,k)
         farey.append(a)
-
+    farey = farey[1:]
+    for i in range(len(farey)):
+        while (farey[i].num,farey[i].den) not in fareySequence:
+            nMax += 1
+            fareySequence = rationalList(nMax, inOrder=True)
+            fareyNum = [x[0] for x in fareySequence]
+            fareyDen = [x[1] for x in fareySequence]
+        indNum = np.where(np.asarray(fareyNum) == farey[i].num)[0]
+        indDen = np.where(np.asarray(fareyDen) == farey[i].den)[0]
+        ind = np.intersect1d(indNum, indDen)
+        if len(ind) != 0:
+            try:
+                back = fareySequence[ind-1]
+            except IndexError:
+                back = fareySequence[ind]
+            try:
+                forward = fareySequence[ind+1]
+            except IndexError:
+                forward = fareySequence[ind]
+            neighbors.append((back,forward))
+        
+    print(neighbors)
     for j in range(len(farey)-1):
+        changed = False
+        if CF[0] > 1:
+            CF[0] -= 1
+            changed = True
         maxBound = max(CF[:j]) if j > 0 else 1
+        if changed:
+            CF[0] += 1
         color = cmap.to_rgba(maxBound) # if cmap.norm == None else cmap(maxBound/10)
-        plt.plot([i.val-axisoffset for i in farey[j:j+2]],
-                [i.den for i in farey[j:j+2]],color=color,linewidth=1)
+        # plot line only if partners are Farey neighbors
+        for x in neighbors[j]:
+            print(x[0],farey[j+1])
+            if x[0][0] == farey[j+1].num: 
+                if x[0][1] == farey[j+1].den:
+                    plt.plot([i.val-axisoffset for i in farey[j:j+2]],
+                            [i.den for i in farey[j:j+2]],color=color,linewidth=1)
         (diophantineMin, diophantineMax) = farey[j+1].diophantine
         plt.plot([diophantineMin-axisoffset,diophantineMax-axisoffset],
                 [farey[j+1].den]*2,
                 color = color, linewidth=4)
     
-    # print(CF, farey)
+    # print(CF, farey, neighbors)
+    # print(Brjuno(farey,1), Brjuno(farey,2), Brjuno(farey,3))
     
     return farey
         
 goldenMean = valtoCF((math.sqrt(5)-1)/2)
 # print([index for index,value in enumerate(goldenMean) if value > 1])
 
-def makeAlltoN(d=0.2,kHere=2., nmax=10, length=10, axisOffset = 0):
-    norm = matplotlib.colors.LogNorm(vmin = 1, vmax = 10)
-    plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1000e3, 10001e3])
+def makeAlltoN(d=0.2,kHere=2., nmax=10, length=10, axisOffset = 0, 
+        colorMap=matplotlib.cm.ScalarMappable(norm=matplotlib.colors.LogNorm(vmin = 1, 
+        vmax = 10), cmap=cmaps.viridis)):
+
+    # plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1000e3, 10001e3])
     # ax1 = plt.colorbar(label='Max Element in CF')
-    colorMap = matplotlib.cm.ScalarMappable(norm=norm, cmap='spectral')
+    # colorMap = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmaps.viridis)
     
     iteration = itertools.product(np.arange(1,nmax+1), repeat=length)
     els, fareyVals = [], []
@@ -124,18 +175,28 @@ def plotAssortment(offset = 0, d = 0.15, k = 2, path = None, axisLog = False):
 
 def restartPlot(restart = True):
     
-    fig1 = plt.figure(1)
+    fig1 = plt.figure(1,figsize=(10,10))
     if restart:
         plt.clf()
-    norm = matplotlib.colors.LogNorm(vmin = 1, vmax = 10)
-    colorMap = matplotlib.cm.ScalarMappable(norm=norm, cmap='spectral')
-    plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1000e3, 10001e3])
-    ax1 = plt.colorbar(label='Max Element in CF')
+    norm = matplotlib.colors.LogNorm(vmin = 2, vmax = 10)
+    cMap = cmaps.viridis
+    cMap.set_under('r')
+    colorMap = matplotlib.cm.ScalarMappable(norm=norm, cmap=cMap)
+    
+    plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1000e3, 10001e3],cmap=cmaps.viridis)
+    ax1 = plt.colorbar(label='Max Element in CF',extend='both')
+    
+    #legend 
+    plt.plot([-1,-1],[1e-3,1e-3],'k-',linewidth=1,label="Farey steps")
+    plt.plot([-2,-1],[1e-3,1e-3],'k-',linewidth=4,label="Diophantine widths")
+    plt.legend(loc=1)
     
     axisOffset = 0
-    
+    plt.plot
     plt.yscale('log',basey=10)
-    plt.axis([0,1,0.9,1e3])
+    plt.ylabel('Denominator',fontsize=20)
+    plt.xlabel('Value',fontsize=20)
+    plt.axis([0,1,3e-1,1e3])
     plt.gca().invert_yaxis()
     
     return fig1, colorMap, axisOffset
@@ -212,7 +273,8 @@ def module():
     submitTreeButton = Button(top, text="Add Tree",
         command=lambda: makeAlltoN(d = float(dInput.get()),
             kHere = float(kInput.get()), nmax = int(nmaxInput.get()),
-            length = int(lengthInput.get()),axisOffset = axisOffset))
+            length = int(lengthInput.get()),axisOffset = axisOffset,
+            colorMap = colorMap))
     submitTreeButton.grid(row=6, column=0,columnspan=3)
 
     
