@@ -15,8 +15,14 @@ from matplotlib.figure import Figure
 import sys
 sys.path.insert(0, '/home/brian/GitHub/colormap/')
 import colormaps as cmaps
+import pickle
 
 phi = (math.sqrt(5)-1)/2.
+fareySequences = []
+# for i in range(19):
+#     fareySequences.append(rationalList(i+1,inOrder=True))
+# with open('fareySequences.pkl','w+') as f:
+#    pickle.dump(fareySequences,f)
 
 def CFtoVal(CFarray):
     CF = [x for x in CFarray]
@@ -42,6 +48,7 @@ def Brjuno(fareyList, j):
         val += math.log(fareyList[n+j].den)/fareyList[n].den
         n += 1
     return val
+
     
 
 def plotLine(CF,axisoffset=0., d = 0.15,k = 2., 
@@ -59,33 +66,32 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
         CF[-1] = float(CF[-1])-1
         CF.append(1.)
 
-    nMax, fareySequence = 4, []
     neighbors = []
     for i in range(len(CF)):
         a = getNextRational(int(CF[i]),farey,d,k)
         farey.append(a)
+
     farey = farey[1:]
-    for i in range(len(farey)):
-        while (farey[i].num,farey[i].den) not in fareySequence:
-            nMax += 1
-            fareySequence = rationalList(nMax, inOrder=True)
+    for i in range(len(farey)-1):
+        level = 0
+        while True:
+            fareySequence = fareySequences[level]
             fareyNum = [x[0] for x in fareySequence]
             fareyDen = [x[1] for x in fareySequence]
-        indNum = np.where(np.asarray(fareyNum) == farey[i].num)[0]
-        indDen = np.where(np.asarray(fareyDen) == farey[i].den)[0]
-        ind = np.intersect1d(indNum, indDen)
-        if len(ind) != 0:
-            try:
-                back = fareySequence[ind-1]
-            except IndexError:
-                back = fareySequence[ind]
-            try:
-                forward = fareySequence[ind+1]
-            except IndexError:
-                forward = fareySequence[ind]
-            neighbors.append((back,forward))
-        
-    print(neighbors)
+            ind = []
+            for f in [farey[i],farey[i+1]]:
+                indNum = np.where(np.asarray(fareyNum) == f.num)[0]
+                indDen = np.where(np.asarray(fareyDen) == f.den)[0]
+                if (len(list(np.intersect1d(indNum, indDen))) == 0):
+                    level += 1
+                    continue
+                else:
+                    ind.append(list(np.intersect1d(indNum, indDen))[0])
+            if len(ind) == 2:
+                neighboring = True if abs(ind[0]-ind[1]) == 1 else False
+                neighbors.append(neighboring)
+                break
+
     for j in range(len(farey)-1):
         changed = False
         if CF[0] > 1:
@@ -96,12 +102,9 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
             CF[0] += 1
         color = cmap.to_rgba(maxBound) # if cmap.norm == None else cmap(maxBound/10)
         # plot line only if partners are Farey neighbors
-        for x in neighbors[j]:
-            print(x[0],farey[j+1])
-            if x[0][0] == farey[j+1].num: 
-                if x[0][1] == farey[j+1].den:
-                    plt.plot([i.val-axisoffset for i in farey[j:j+2]],
-                            [i.den for i in farey[j:j+2]],color=color,linewidth=1)
+        if neighbors[j]:
+            plt.plot([i.val-axisoffset for i in farey[j:j+2]],
+                    [i.den for i in farey[j:j+2]],color=color,linewidth=1)
         (diophantineMin, diophantineMax) = farey[j+1].diophantine
         plt.plot([diophantineMin-axisoffset,diophantineMax-axisoffset],
                 [farey[j+1].den]*2,
