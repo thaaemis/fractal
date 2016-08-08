@@ -3,26 +3,23 @@
 # Plot convergent lines VS. direct Farey lines 
 # How to finally fix color normalization all the way through (L/R asymmetry)
 
-import matplotlib, math, itertools
-matplotlib.use("TkAgg")
+import math, itertools, matplotlib
+matplotlib.use("QT4Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from fractal import getP, rationalList
 from selfSimilar import rational, makeFractionList, getFareyPath
-from Tkinter import *
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
-from matplotlib.figure import Figure
+# from Tkinter import *
+# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+# from matplotlib.figure import Figure
 import sys
 sys.path.insert(0, '/home/brian/GitHub/colormap/')
 import colormaps as cmaps
 import pickle
 
 phi = (math.sqrt(5)-1)/2.
-fareySequences = []
-# for i in range(19):
-#     fareySequences.append(rationalList(i+1,inOrder=True))
-# with open('fareySequences.pkl','w+') as f:
-#    pickle.dump(fareySequences,f)
+# with open('fareySequences.pkl','r') as f:
+#    fareySequences = pickle.load(f)
 
 def CFtoVal(CFarray):
     CF = [x for x in CFarray]
@@ -72,26 +69,27 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
         farey.append(a)
 
     farey = farey[1:]
-    for i in range(len(farey)-1):
-        level = 0
-        while True:
-            fareySequence = fareySequences[level]
-            fareyNum = [x[0] for x in fareySequence]
-            fareyDen = [x[1] for x in fareySequence]
-            ind = []
-            for f in [farey[i],farey[i+1]]:
-                indNum = np.where(np.asarray(fareyNum) == f.num)[0]
-                indDen = np.where(np.asarray(fareyDen) == f.den)[0]
-                if (len(list(np.intersect1d(indNum, indDen))) == 0):
-                    level += 1
-                    continue
-                else:
-                    ind.append(list(np.intersect1d(indNum, indDen))[0])
-            if len(ind) == 2:
-                neighboring = True if abs(ind[0]-ind[1]) == 1 else False
-                neighbors.append(neighboring)
-                break
-
+#    for i in range(len(farey)-1):
+#        level = 0
+#        while True:
+#            fareySequence = fareySequences[level]
+#            fareyNum = [x[0] for x in fareySequence]
+#            fareyDen = [x[1] for x in fareySequence]
+#            ind = []
+#            for f in [farey[i],farey[i+1]]:
+#                indNum = np.where(np.asarray(fareyNum) == f.num)[0]
+#                indDen = np.where(np.asarray(fareyDen) == f.den)[0]
+#                if (len(list(np.intersect1d(indNum, indDen))) == 0):
+#                    level += 1
+#                    continue
+#                else:
+#                    ind.append(list(np.intersect1d(indNum, indDen))[0])
+#            if len(ind) == 2:
+#                neighboring = True if abs(ind[0]-ind[1]) == 1 else False
+#                neighbors.append(neighboring)
+#                break
+    plt.plot([d-axisoffset,-d-axisoffset],
+            [farey[0].den]*2, color = cmap.to_rgba(1), linewidth=4)
     for j in range(len(farey)-1):
         changed = False
         if CF[0] > 1:
@@ -102,9 +100,9 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
             CF[0] += 1
         color = cmap.to_rgba(maxBound) # if cmap.norm == None else cmap(maxBound/10)
         # plot line only if partners are Farey neighbors
-        if neighbors[j]:
-            plt.plot([i.val-axisoffset for i in farey[j:j+2]],
-                    [i.den for i in farey[j:j+2]],color=color,linewidth=1)
+        # if neighbors[j]:
+        plt.plot([i.val-axisoffset for i in farey[j:j+2]],
+                [i.den for i in farey[j:j+2]],color=color,linewidth=1)
         (diophantineMin, diophantineMax) = farey[j+1].diophantine
         plt.plot([diophantineMin-axisoffset,diophantineMax-axisoffset],
                 [farey[j+1].den]*2,
@@ -116,9 +114,8 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
     return farey
         
 goldenMean = valtoCF((math.sqrt(5)-1)/2)
-# print([index for index,value in enumerate(goldenMean) if value > 1])
 
-def makeAlltoN(d=0.2,kHere=2., nmax=10, length=10, axisOffset = 0, 
+def makeAlltoN(d=0.2,kHere=2., nmax=3, length=2, axisOffset = 0, 
         colorMap=matplotlib.cm.ScalarMappable(norm=matplotlib.colors.LogNorm(vmin = 1, 
         vmax = 10), cmap=cmaps.viridis)):
 
@@ -176,18 +173,18 @@ def plotAssortment(offset = 0, d = 0.15, k = 2, path = None, axisLog = False):
     else:
         plotLine(path, axisoffset = offset, d = d, k = k, axisLog = axisLog)
 
-def restartPlot(restart = True):
+def restartPlot(restart = True,symlog = False):
     
     fig1 = plt.figure(1,figsize=(10,10))
     if restart:
         plt.clf()
-    norm = matplotlib.colors.LogNorm(vmin = 2, vmax = 10)
+    norm = matplotlib.colors.LogNorm(vmin = 1, vmax = 2)
     cMap = cmaps.viridis
     cMap.set_under('r')
     colorMap = matplotlib.cm.ScalarMappable(norm=norm, cmap=cMap)
     
-    plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1000e3, 10001e3],cmap=cmaps.viridis)
-    ax1 = plt.colorbar(label='Max Element in CF',extend='both')
+    # plt.imshow([[-5,-2],[-1,1]],norm = norm, extent = [-1, -0.5, 1e-7, 2e-7],cmap=cmaps.viridis)
+    # ax1 = plt.colorbar(label='Max Element in CF',extend='both')
     
     #legend 
     plt.plot([-1,-1],[1e-3,1e-3],'k-',linewidth=1,label="Farey steps")
@@ -195,14 +192,33 @@ def restartPlot(restart = True):
     plt.legend(loc=1)
     
     axisOffset = 0
-    plt.plot
-    plt.yscale('log',basey=10)
     plt.ylabel('Denominator',fontsize=20)
+    plt.yscale('log',basey=10)
     plt.xlabel('Value',fontsize=20)
     plt.axis([0,1,3e-1,1e3])
     plt.gca().invert_yaxis()
     
     return fig1, colorMap, axisOffset
+
+
+restartPlot(True, symlog=True)
+CF = [1]*30
+# makeAlltoN(axisOffset = phi, nmax = 3, length = 6, d = 1-phi, kHere = 1.999)
+plotLine(CF,axisoffset=phi, d = 1-phi,k = 2.)
+CF = [1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+plotLine(CF,axisoffset=CFtoVal(CF), d = 0.3828,k = 2.)
+plt.xlabel(r'Value - $\phi$',fontsize=20)
+plt.xscale('symlog',linthreshx=1e-7)
+plt.axis([-1,1,3e-1,1e3])
+
+plt.show()
+
+
+
+
+
+
+
 
 def module():
 
@@ -285,7 +301,7 @@ def module():
     
     
 
-    canvas = FigureCanvasTkAgg(fig1, top)
+    # canvas = FigureCanvasTkAgg(fig1, top)
     # toolbar = NavigationToolbar2TkAgg(canvas, top)
     
     def includeFig():
@@ -304,7 +320,7 @@ def module():
     Button(top, text="Quit", command = top.quit).grid(row=9,column=1,columnspan=3)
     top.mainloop()
 
-module()
+# module()
 
 #plt.figure(1)
 #d, k = 0.2, 1.9
