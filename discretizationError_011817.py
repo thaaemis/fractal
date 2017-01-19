@@ -88,23 +88,33 @@ def measureConvergence():
     gradpExact = interp1d(xNew, gradp)
     numPts = len(x)
     #plot(x, [gradpExact(i) for i in x],'.')
+    print(p[numPts-1])
     
     # look at dumb grid way
-    nVals = reversed([10, 50, 100, 500, 1000, 5000, 10000])
+    nVals = np.arange(10,5000,10)
+    integrals = []
     for n in nVals:
         gridPts = np.arange(0.0,max(x),max(x)/float(n))
         # get Riemann integral
         riemannInt = 0
         for i in range(0,n):
             point = float(i)/float(n)
-            riemannInt = gradpExact(point)/float(n)
-            # plot(point, gradpExact(point),'o',markersize=np.log(n))
-        print(n, riemannInt)
-        
-    # get fractal grid approximations
-    low, high = 1,9
-    xDict, pDict, gradpDict, interpFunctions = retrieveDicts(low, high)
+            riemannInt += gradpExact(point)/float(n)
+            color = 'r' if n < 20 else 'b'
+            # plot(point, gradpExact(point),'o',markersize=np.log(n), color=color)
+        integrals.append(riemannInt)
+    plot(nVals,integrals,'ro')
+    plot([0,1000],[p[numPts-1],p[numPts-1]],'g--')
     
+    # get fractal grid approximations
+    low, high = 1, 10
+    gridSize, fractPs = [],[]
+    xDict, pDict, gradpDict, interpFunctions = retrieveDicts(low, high)
+    for i in range(1,11):
+        gridSize.append(len(pDict[i]))
+        fractPs.append(pDict[i][-1])
+    plot(gridSize,fractPs,'b*')
+    xscale('log')
     show()
 measureConvergence()
 # saveManyP()
