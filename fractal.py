@@ -4,7 +4,8 @@ from matplotlib import gridspec
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy.integrate import quad
 from scipy.interpolate import interp1d
-    
+
+
 def integFractal(x,fractal):
     fxn = []
     for i in range(1,len(x)+1):
@@ -19,7 +20,7 @@ def iotaInverse(iota):
     return 1-(abs(1-iota)*8./7.)**0.5
    
 # Make list of all rationals to consider.
-def rationalList(nmax, fareyMethod='treeSteps',inOrder=False):
+def rationalList(nmax, fareyMethod='treeSteps',inOrder=False, getN = False):
     def farey( n, asc=True ): # give all rationals for nth farey tree
         """Python function to print the nth Farey sequence, either ascending or descending."""
         row = set()
@@ -46,7 +47,7 @@ def rationalList(nmax, fareyMethod='treeSteps',inOrder=False):
             while len(farey(n)) < getN:
                 n = n + 1
             nmax = n
-        for n in range(2, nmax+1):
+        for n in range(2, int(nmax+1)):
             fareyLevels.append(farey(n)-farey(n-1))
 
     elif fareyMethod == 'treeSteps':
@@ -74,7 +75,8 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
             integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
             integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
         integral.pop()
-        return integral    
+        integral.reverse() 
+        return integral
 
     def stepFxn(xL,xR):
         xL = xL[1:] # trim irrelevant start point
@@ -131,7 +133,7 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
     cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
     
     # list of Farey rationals
-    fareyLevels = rationalList(nMax, fareyMethod)
+    fareyLevels = rationalList(nmax, fareyMethod)
     nTot = sum([len(x) for x in fareyLevels]) # How many rationals are considered
                 
     # Loop over levels of Farey tree from 2 until nmax:
@@ -164,11 +166,14 @@ def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, grad
     iotaR = [x.high for x in cleanRegions]
     rL = [iotaInverse(x.low)  for x in cleanRegions]
     rR = [iotaInverse(x.high) for x in cleanRegions]
-    x, gradp = stepFxn(rL,rR)
+    iota, gradp = stepFxn(iotaL,iotaR)
+    x = [8./7.*(1 - i)**0.5 for i in iota]
     p = integStepFxn(x,gradp)
+    offset = -1*min(p)
+    p = [ii+offset for ii in p]
     return x, p, gradp
 
-    
+
 def deriv(y,x):
     return np.gradient(y)/np.gradient(x)
 
@@ -176,6 +181,7 @@ def deriv(y,x):
 def cylinderB(d,k,nmax,RKstep,R=1.,fareyMethod = 'maxDen'): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
     
     x, p, gradp = getP(d, k, nmax, fareyMethod = fareyMethod)
+    x.reverse()
     p.reverse()
     gradp.reverse()
     
@@ -186,12 +192,10 @@ def cylinderB(d,k,nmax,RKstep,R=1.,fareyMethod = 'maxDen'): # returns iota, Bz, 
         return BzP
     
     # set initial conditions
-    B0 = 1.
+    B0 = 1.2
     Bz, r, i = [B0], [0], 0
     BzNo, BzYes = [B0], [B0]
-    pFull, pPrimeFull = [p[0]],[0]
-    
-    
+    pFull, pPrimeFull = [p[0]],[0]    
     
     while r[-1] <= 1:
         # do RK4 method for solving for Bz(r)
@@ -238,35 +242,35 @@ def cylinderB(d,k,nmax,RKstep,R=1.,fareyMethod = 'maxDen'): # returns iota, Bz, 
         Jz = 1/r*deriv(r*Btheta,r)
     
     return(r.tolist(), Bz.tolist(), Btheta.tolist(), 
-           Jtheta.tolist(), Jz.tolist(), x, p, gradp, pFull, pPrimeFull,
-           BzNo, BzYes)
+           Jtheta.tolist(), Jz.tolist(), x, p, gradp) #, pFull, pPrimeFull,
+           # BzNo, BzYes)
 
 def makePlots():           
     # Make many plots of B, J, p for different parameters.
-    params = [('maxDen',200),('treeSteps',11),('treeSteps',12)]
-    params.sort(reverse=False)
+    params = [(0.1, 2.2)] #, (0.05, 2.2), (0.1, 2.2)] #[('maxDen',200),('treeSteps',11),('treeSteps',12)]
+    # params.sort(reverse=False)
     fareyLevel = 15
     fig = figure(1) # subplot(gs[0,0:2])
     ax = fig.add_subplot(111)
     # axins = inset_axes(ax, 3,3, loc=3)
 
     figure(2)
-    gs = gridspec.GridSpec(2, 2, height_ratios = [1,1]) # gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
+    gs = gridspec.GridSpec(1, 2) #, height_ratios = [1,1]) # gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
     for param in params:
-        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.15,2,param[1],0.00001,fareyMethod=param[0])
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param[0],param[1],10,0.00001,R=4.,fareyMethod='treeSteps')
         magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
         figure(1)
         ax.plot(x,np.array(p))
         # axins.plot(x,np.array(p))
         figure(2)
         subplot(gs[0,0]) # subplot(gs[1,0])
-        plot(r,Bz)
-        subplot(gs[1,0])
-        plot(r,Btheta)
-        subplot(gs[1,1])
-        plot(r,Jtheta)
+        plot(r,Bz,'.',markersize=1)
+        subplot(gs[0,0])
+        plot(r,Btheta,'.',markersize=1)
         subplot(gs[0,1])
-        plot(r,Jz)
+        plot(r,Jtheta,'.',markersize=.1)
+        subplot(gs[0,1])
+        plot(r,Jz,'.',markersize=.1)
         
     figure(1) # subplot(gs[0,0:2])
     sca(ax)
@@ -287,17 +291,19 @@ def makePlots():
     figure(2)
     subplot(gs[0,0])
     text(0.1, 0.85, r"$B_z(r)$", fontsize=26)
-    subplot(gs[1,0])
+    legend([r'$(d, k)$ = '+str(g) for g in params],loc='best')
+    subplot(gs[0,0])
     text(0.9, max(Btheta)*0.8, r"$B_\theta(r)$", fontsize=26)
     xlabel(r'r/a',fontsize=20)
-    subplot(gs[1,1])
-    text(0.95, max(Jtheta)*0.8, r"$J_\theta(r)$", fontsize=26)
+    subplot(gs[0,1])
+    text(0.2, max(Jtheta)/1.3, r"$J_\theta(r)$", fontsize=26)
     xlabel(r'r/a',fontsize=20)
     subplot(gs[0,1])
     text(0.1, -0.1, r"$J_z(r)$", fontsize=26)
-    legend(['d = '+str(g) for g in params])
+    legend([r'$(d, k)$ = '+str(g) for g in params])
     show()
-    
+
+
 def pressureAsymptotes():
     #Plot saturation of p as Farey tree saturates
     n = []
@@ -387,7 +393,7 @@ def streamsBz():
     show()
 # streamsBz()
     
-# makePlots()
+#makePlots()
 
 # Show "honing in" on golden mean as d increases towards critical value
 # 
@@ -523,8 +529,10 @@ def plotBzSF(plots=False):
         show()
     else:
         clf()
-# plotBzSF()
 
+# plotBzSF(True)
+
+# makePlots()
     
 # F = F[1:]
 # plot(rOn,np.asarray(BzOn)+0.02,'b.',markersize=1,label=r"$\nabla p = 1$")

@@ -3,72 +3,112 @@ import time
 import matplotlib as mpl
 from fractal import cylinderB
 import numpy as np
+import palettable.cubehelix as cubeHelix
+
+from palettable.colorbrewer.diverging import BrBG_10
+
 from scipy.interpolate import interp1d
 from mpl_toolkits.mplot3d import Axes3D
 sys.path.insert(0, '/home/brian/GitHub/colormap/')
 import colormaps as cmaps
 
-r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.15, 2, 8, 0.00001, 
-        fareyMethod='treeSteps')
+def make3Dcylinder(axesOn3D = False):
+    r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(.08, 2.1, 10, 0.00001, 
+            fareyMethod='treeSteps')
 
-gridSpace = 0.02
-xMesh, yMesh = np.meshgrid(np.arange(0,1,gridSpace),  \
-                           np.arange(0,1,gridSpace))
+    gridSpace = .005
+    xMesh, yMesh = np.meshgrid(np.arange(0,1+gridSpace,gridSpace),  \
+                               np.arange(0,1+gridSpace,gridSpace))
+    
 
-JzFxn = interp1d(r, Jz)
-JthetaFxn = interp1d(r, Jtheta)
-BzFxn = interp1d(r, Bz)
-BthetaFxn = interp1d(r, Btheta)
-pFxn = interp1d(x,p)
-gradPFxn = interp1d(x, gradp)
+    JzFxn = interp1d(r, Jz)
+    JthetaFxn = interp1d(r, Jtheta)
+    BzFxn = interp1d(r, Bz)
+    BthetaFxn = interp1d(r, Btheta)
+    pFxn = interp1d(x,p)
+    gradPFxn = interp1d(x, gradp)
 
-JzMesh = [JzFxn(x) for x in yMesh[:,:]]
-JthetaMesh = [JthetaFxn(x) for x in yMesh[:,]]
-BzMesh = [BzFxn(x) for x in yMesh[:,:]]
-BthetaMesh = [BthetaFxn(x) for x in yMesh[:,]]
+    JzMesh = [JzFxn(x) for x in yMesh[:,:]]
+    JthetaMesh = [JthetaFxn(x) for x in yMesh[:,]]
+    BzMesh = [BzFxn(x) for x in yMesh[:,:]]
+    BthetaMesh = [BthetaFxn(x) for x in yMesh[:,]]
 
-maxJz, minJz = np.max(Jz), np.min(Jz)
-cmap = cmaps.viridis
-norm = mpl.colors.Normalize(vmin = minJz, vmax = maxJz)
-thetaMesh, rMesh = np.meshgrid(np.arange(0,3*math.pi/2.,gridSpace),
-                               np.arange(0,1,gridSpace))
-pMesh = [pFxn(x) for x in rMesh]
-gradPMesh = [gradPFxn(x) for x in rMesh]
-side1xMesh = rMesh*0+1.
-side1yMesh = rMesh * np.cos(thetaMesh)
-side1zMesh = -1 * rMesh * np.sin(thetaMesh)
+    cmap = cubeHelix.red_16.mpl_colormap
+    cmap2 = cubeHelix.cubehelix3_16.mpl_colormap
 
-color2Mesh = rMesh * 0 + gradPFxn(0)
-side2rMesh = 0 * rMesh + 1
-side2thetaMesh = thetaMesh
-side2xMesh = rMesh
-side2yMesh = side2rMesh * np.cos(side2thetaMesh)
-side2zMesh = side2rMesh * -1 * np.sin(side2thetaMesh)
+    maxJz, minJz = np.max(Jz), np.min(Jz)
+    norm = mpl.colors.Normalize(vmin = minJz, vmax = maxJz)
+    thetaMesh, rMesh = np.meshgrid(np.arange(0,3*math.pi/2.,gridSpace),
+                                   np.arange(0,1+gridSpace,gridSpace))
+    pMesh = [pFxn(x) for x in rMesh]
+    gradPMesh = [gradPFxn(x) for x in rMesh]
+    side1xMesh = rMesh*0+1.
+    side1yMesh = rMesh * np.cos(thetaMesh)
+    side1zMesh = -1 * rMesh * np.sin(thetaMesh)
 
-fig = figure()
-ax = fig.add_subplot(111, projection = '3d')
-color = (JzMesh - minJz)/(maxJz - minJz)
+    color2Mesh = rMesh * 0 + gradPFxn(0)
+    side2rMesh = 0 * rMesh + 1
+    side2thetaMesh = thetaMesh
+    side2xMesh = rMesh
+    side2yMesh = side2rMesh * np.cos(side2thetaMesh)
+    side2zMesh = side2rMesh * -1 * np.sin(side2thetaMesh)
 
-# close cylinder
-print(size(side2xMesh), size(side2yMesh), size(side2zMesh), size(color2Mesh))
-time.sleep(1)
-ax.scatter(side2xMesh, side2yMesh, side2zMesh, 
-    c = color2Mesh, cmap = cmap, linewidth = 0)# Jz on z = 0 plane
-ax.scatter(xMesh, yMesh, yMesh*0., 
-    c = JzMesh, cmap = cmap, linewidth = 0)
-# Jtheta on y = 0
-ax.scatter(xMesh, yMesh*0, yMesh, 
-    c = JthetaMesh, cmap = cmap, linewidth = 0)
-# pressure on x = 1
-print(size(side1xMesh), size(side1yMesh), size(side1zMesh), size(pMesh))
-time.sleep(1)
-ax.scatter(side1xMesh, side1yMesh, side1zMesh, 
-    c = gradPMesh, cmap = cmap, linewidth = 0)
+    fig = figure()
+    ax = fig.add_subplot(111, projection = '3d')
+    color = (JzMesh - minJz)/(maxJz - minJz)        
+        
+    # front of cylinder: pressure on x = 1
+    color1Mesh = cmap2(gradPMesh)
+    cylinderFront = ax.plot_surface(side1xMesh, side1yMesh, side1zMesh,
+                         rstride=1, cstride=1, facecolors=color1Mesh,
+                           cmap = cmap, linewidth=0, antialiased=False,
+                           alpha=1.)
 
-ax.set_ylabel('y')
-ax.set_xlabel('x')
-ax.set_zlabel('z')
-ax.view_init(elev = 25, azim = 40)
-show()
+    # back of cylinder
+    cylinderBackk = ax.plot_surface(side1xMesh*0, side1yMesh, side1zMesh,
+                         rstride=20, cstride=20, facecolors=cmap(side1xMesh*0),
+                           cmap = cmap, linewidth=0, antialiased=False, alpha=0.15)
 
+    horzFlat = ax.plot_surface(xMesh, yMesh, yMesh*0., rstride=1, cstride=1, 
+        facecolors = cmap(JzMesh), cmap = cmap, linewidth = 0, antialiased=False,
+        alpha=1.)
+        
+    # Jtheta on y = 0
+    vertFlat = ax.plot_surface(xMesh, yMesh*0, yMesh, rstride=1, cstride=1,
+        facecolors = cmap(JthetaMesh), cmap = cmap, linewidth = 1, alpha=1.)
+        
+    # close cylinder
+    color2Mesh = cmap(color2Mesh)
+    outsideCylinder = ax.plot_surface(side2xMesh, side2yMesh, side2zMesh,
+        rstride=20, cstride=20, facecolors=color2Mesh, cmap = cmap, linewidth=0,
+            antialiased=False, alpha=0.15)
+
+    if axesOn3D:
+        ax.set_ylabel('y')
+        ax.set_xlabel('x')
+        ax.set_zlabel('z')
+    else:
+        ax._axis3don = False
+    ax.view_init(elev = 25, azim = 40)
+    
+    #text in plot
+    ax.text(1.13717, -0.712337, -1.21691, r'$\nabla p$',fontsize=35)
+    ax.text(0.0327865, 0.174096, .65139, r'$J_\theta$',fontsize=35)
+    ax.text(0.0557875, 0.859675, 0.177244, r'$J_\phi$',fontsize=35)
+
+    #colorbar axes
+    cAx1 = fig.add_axes([0.05, 0.1, 0.05, 0.8]) # left side: front face
+    cAx2 = fig.add_axes([0.3, 0.88, 0.6, 0.1]) # right side: cutouts
+    norm = mpl.colors.Normalize(vmin=0, vmax=1)
+    norm2 = mpl.colors.Normalize(vmin=-1*minJz, vmax=2*maxJz)
+    cbLeft = mpl.colorbar.ColorbarBase(cAx1, cmap=cmap2, norm=norm, orientation='vertical')
+    cbLeft.ax.tick_params(labelsize=20)
+    cbRight = mpl.colorbar.ColorbarBase(cAx2, cmap=cmap, norm=norm2,
+          orientation='horizontal',ticks=[-1, 1])
+    cbRight.ax.set_xticklabels(['Min', 'Max'])
+    cbLeft.set_label(r'Pressure Gradient', fontsize=30)
+    cbRight.set_label(r'Current $J$', fontsize=30)
+    show()
+
+make3Dcylinder()
 

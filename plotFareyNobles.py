@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from fractal import getP, rationalList
 from selfSimilar import rational, makeFractionList, getFareyPath
-# from Tkinter import *
-# from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
-# from matplotlib.figure import Figure
+from Tkinter import *
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.figure import Figure
 import sys
 sys.path.insert(0, '/home/brian/GitHub/colormap/')
 import colormaps as cmaps
@@ -49,13 +49,17 @@ def Brjuno(fareyList, j):
     
 
 def plotLine(CF,axisoffset=0., d = 0.15,k = 2., 
-    cmap = matplotlib.cm.ScalarMappable(cmap=cmaps.viridis), axisLog = False):
+    cmap = matplotlib.cm.ScalarMappable(cmap=cmaps.viridis), 
+    plotSolid = False, axisLog = False, lineW = 4):
 
     def getNextRational(element, fareyList, d, k):
         n = element * fareyList[-1].num + fareyList[-2].num
         m = element * fareyList[-1].den + fareyList[-2].den
         return rational(n, m, d, k)
         
+        
+    if plotSolid == '':
+        plotSolid = False
         
     CF = [float(c) for c in CF]
     farey = [rational(1,0,d,k), rational(0,1,d,k)] # initiate
@@ -88,8 +92,12 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
 #                neighboring = True if abs(ind[0]-ind[1]) == 1 else False
 #                neighbors.append(neighboring)
 #                break
-    plt.plot([d-axisoffset,-d-axisoffset],
-            [farey[0].den]*2, color = cmap.to_rgba(1), linewidth=4)
+    if plotSolid == False:
+        plt.plot([d-axisoffset,-d-axisoffset],
+            [farey[0].den]*2, color = cmap.to_rgba(1), linewidth=lineW)
+    else:
+        plt.plot([d-axisoffset,-d-axisoffset],
+            [farey[0].den]*2, color = plotSolid, linewidth=lineW)
     for j in range(len(farey)-1):
         changed = False
         if CF[0] > 1:
@@ -101,12 +109,24 @@ def plotLine(CF,axisoffset=0., d = 0.15,k = 2.,
         color = cmap.to_rgba(maxBound) # if cmap.norm == None else cmap(maxBound/10)
         # plot line only if partners are Farey neighbors
         # if neighbors[j]:
-        plt.plot([i.val-axisoffset for i in farey[j:j+2]],
-                [i.den for i in farey[j:j+2]],color=color,linewidth=1)
+
         (diophantineMin, diophantineMax) = farey[j+1].diophantine
-        plt.plot([diophantineMin-axisoffset,diophantineMax-axisoffset],
-                [farey[j+1].den]*2,
-                color = color, linewidth=4)
+        if plotSolid == False:
+            plt.plot([diophantineMin-axisoffset,diophantineMax-axisoffset],
+                    [farey[j+1].den]*2,
+                    color = color, linewidth=lineW)
+            plt.plot([i.val-axisoffset for i in farey[j:j+2]],
+                    [i.den for i in farey[j:j+2]],color=color,linewidth=lineW/4.)
+        else:
+            plt.plot([diophantineMin-axisoffset,diophantineMax-axisoffset],
+                    [farey[j+1].den]*2,
+                    color = plotSolid, linewidth=lineW)
+            if (diophantineMax - diophantineMin) < 0.01:
+                plt.plot(farey[j+1].val, farey[j+1].den, 's',
+                    color=plotSolid, markersize=2)
+                    
+            plt.plot([i.val-axisoffset for i in farey[j:j+2]],
+                    [i.den for i in farey[j:j+2]],color=plotSolid,linewidth=lineW/4.)
     
     # print(CF, farey, neighbors)
     # print(Brjuno(farey,1), Brjuno(farey,2), Brjuno(farey,3))
@@ -129,16 +149,16 @@ def makeAlltoN(d=0.2,kHere=2., nmax=3, length=2, axisOffset = 0,
         elements = [float(g) for g in i]
         els.append(elements)
         fareyVals.append(plotLine(elements,d=d,k=kHere,cmap = colorMap, 
-            axisoffset = axisOffset))
+            axisoffset = axisOffset, plotSolid = 'k'))
         elements.insert(0,1.0)
         els.append(elements)
         fareyVals.append(plotLine(elements,d=d,k=kHere,cmap = colorMap, 
-            axisoffset = axisOffset))
+            axisoffset = axisOffset, plotSolid = 'k'))
         elements = elements[1:]
         elements[0] = float(nmax+1)
         els.append(elements)
         fareyVals.append(plotLine(elements,d=d,k=kHere,cmap = colorMap, 
-            axisoffset = axisOffset))
+            axisoffset = axisOffset, plotSolid = 'k'))
 
 def plotAssortment(offset = 0, d = 0.15, k = 2, path = None, axisLog = False):
     if axisLog == True:
@@ -192,26 +212,28 @@ def restartPlot(restart = True,symlog = False):
     plt.legend(loc=1)
     
     axisOffset = 0
-    plt.ylabel('Denominator',fontsize=20)
+    plt.ylabel('Denominator',fontsize=25)
     plt.yscale('log',basey=10)
-    plt.xlabel('Value',fontsize=20)
-    plt.axis([0,1,3e-1,1e3])
+    plt.yticks(fontsize=20)
+    plt.xticks(fontsize=20)
+    plt.xlabel('Number',fontsize=25)
+    plt.axis([0,1,3e-1,5e2])
     plt.gca().invert_yaxis()
     
     return fig1, colorMap, axisOffset
 
 
-restartPlot(True, symlog=True)
-CF = [1]*30
-# makeAlltoN(axisOffset = phi, nmax = 3, length = 6, d = 1-phi, kHere = 1.999)
-plotLine(CF,axisoffset=phi, d = 1-phi,k = 2.)
-CF = [1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
-plotLine(CF,axisoffset=CFtoVal(CF), d = 0.3828,k = 2.)
-plt.xlabel(r'Value - $\phi$',fontsize=20)
-plt.xscale('symlog',linthreshx=1e-7)
-plt.axis([-1,1,3e-1,1e3])
+#restartPlot(True, symlog=True)
+#CF = [1]*30
+## makeAlltoN(axisOffset = phi, nmax = 3, length = 6, d = 1-phi, kHere = 1.999)
+#plotLine(CF,axisoffset=phi, d = 1-phi,k = 2.)
+#CF = [1,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+#plotLine(CF,axisoffset=CFtoVal(CF), d = 0.3828,k = 2.)
+#plt.xlabel(r'Value - $\phi$',fontsize=20)
+#plt.xscale('symlog',linthreshx=1e-7)
+#plt.axis([-1,1,3e-1,1e3])
 
-plt.show()
+#plt.show()
 
 
 
@@ -272,11 +294,14 @@ def module():
     dividerLabel = Label(top,text="Insert continued fraction: ")
     dividerLabel.grid(row=3,column=0)
     CFinput = Entry(top, width=30)
+    colInput = Entry(top, width=30)
     CFinput.grid(row=3,column=1)
+    colInput.grid(row=3, column=2)
     submitPathButton = Button(top,text="Add Value", command=
         lambda: plotLine(CFinput.get().split(','),
             d = float(dInput.get()), k=float(kInput.get()),
-            cmap = colorMap,axisoffset=axisOffset))
+            cmap = colorMap,axisoffset=axisOffset, 
+            plotSolid = colInput.get(), lineW = 15))
     submitPathButton.grid(row=3,column=2)
     
     dividerLabel2 = Label(top,text="  ")
@@ -301,7 +326,7 @@ def module():
     
     
 
-    # canvas = FigureCanvasTkAgg(fig1, top)
+    canvas = FigureCanvasTkAgg(fig1, top)
     # toolbar = NavigationToolbar2TkAgg(canvas, top)
     
     def includeFig():
@@ -313,14 +338,23 @@ def module():
         # toolbar.update()
         # canvas._tkcanvas.grid(row=4,column=0,columnspan=3)
 
+    def saveImg():
+        plt.savefig('out.png')
+        
     showButton = Button(top, text="Show",
         command = includeFig)
-    showButton.grid(row=9,column=0,columnspan=3)
+    showButton.grid(row=9,column=0,columnspan=2)
+    
+    saveButton = Button(top, text="Save",
+        command = saveImg)
+    saveButton.grid(row=9, column=2)
         
     Button(top, text="Quit", command = top.quit).grid(row=9,column=1,columnspan=3)
     top.mainloop()
+    
 
-# module()
+
+module()
 
 #plt.figure(1)
 #d, k = 0.2, 1.9

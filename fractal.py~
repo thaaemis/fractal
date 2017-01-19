@@ -1,0 +1,559 @@
+from pylab import *
+import numpy as np
+from matplotlib import gridspec
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from scipy.integrate import quad
+from scipy.interpolate import interp1d
+
+
+def integFractal(x,fractal):
+    fxn = []
+    for i in range(1,len(x)+1):
+        fxn.append(trapz(fractal[0:i],x[0:i]))
+    return fxn
+    
+def iota(r):
+    return 1-7*r**2/8.
+def iotaPrime(r):
+    return -7*r/4.
+def iotaInverse(iota):
+    return 1-(abs(1-iota)*8./7.)**0.5
+   
+# Make list of all rationals to consider.
+def rationalList(nmax, fareyMethod='treeSteps',inOrder=False, getN = False):
+    def farey( n, asc=True ): # give all rationals for nth farey tree
+        """Python function to print the nth Farey sequence, either ascending or descending."""
+        row = set()
+        if asc: 
+            a, b, c, d = 0, 1,  1 , n     # (*)
+        else:
+            a, b, c, d = 1, 1, n-1, n     # (*)
+        row.add((a,b))
+        while (asc and c <= n) or (not asc and a > 0):
+            k = int((n + b)/d)
+            a, b, c, d = c, d, k*c - a, k*d - b
+            row.add((a,b))
+        return row
+        
+    def sortFarey(farey):
+        fareyVals = [float(x[0])/float(x[1]) for x in farey]
+        indices = np.argsort(fareyVals)
+        return np.asarray(farey)[indices]
+        
+    fareyLevels = []
+    if fareyMethod == 'maxDen':
+        if getN != False:
+            n = nmax
+            while len(farey(n)) < getN:
+                n = n + 1
+            nmax = n
+        for n in range(2, int(nmax+1)):
+            fareyLevels.append(farey(n)-farey(n-1))
+
+    elif fareyMethod == 'treeSteps':
+        fareyAll = [(0,1),(1,1)]
+        fareyLevels.append(set(fareyAll))
+        for n in range(nmax+1):
+            newLevel, count = [], 1
+            fareyAllCopy = [x for x in fareyAll]
+            # newLevel.append(fareyAll[i])
+            for i in range(len(fareyAll)-1):
+                newLevel.append((fareyAllCopy[i][0]+fareyAllCopy[i+1][0],fareyAllCopy[i][1]+fareyAllCopy[i+1][1]))
+                fareyAll.insert(i+count,newLevel[-1])
+                count += 1
+            fareyLevels.append(set(newLevel))
+    if not inOrder:
+        return fareyLevels
+    else:
+        return sortFarey(fareyAll)
+        
+def getP(d, k, nmax, fareyMethod = 'maxDen', getN = False): # returns x, p, gradp
+
+    def integStepFxn(x,fxn):
+        integral = [0]
+        for i in range(1,len(x),2):
+            integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
+            integral.append(integral[i-1]+(x[i]-x[i-1])*fxn[i])
+        integral.pop()
+        integral.reverse() 
+        return integral
+
+    def stepFxn(xL,xR):
+        xL = xL[1:] # trim irrelevant start point
+        xR = xR[0:-1] #trim irrelevant end point
+        x, fxn = [0], [0]
+        for i in range(0,len(xR)):
+            # Stay zero
+            fxn.append(0)
+            x.append(xR[i])
+            # Jump to 1
+            fxn.append(1)
+            x.append(xR[i])
+            #Stay 1
+            fxn.append(1)
+            x.append(xL[i])
+            # Jump to 0
+            fxn.append(0)
+            x.append(xL[i])
+        x.append(1)
+        fxn.append(0)
+        return x,fxn
+
+
+    class window:
+        def __init__(self,n,m,d,k):
+            self.r = float(n)/float(m) # rational center
+            self.num = n # numerator
+            self.den = m # denominator
+            self.low  = (n * m**(k-1) - d)/m**k # excluded upper bound
+            self.high = (n * m**(k-1) + d)/m**k # excluded low bound
+            
+        def __lt__(self,other):
+            return self.r < other.r
+            
+        def getLowDen(self,list):
+            lowDen = min(x.den for x in list)
+            lowWindow = (y for y in list if y.den == lowDen)
+            return min(lowWindow)
+            
+        def overlap(self,other):
+            if self.r < other.r:
+                return self.high >= other.low
+            else:
+                return self.low <= other.high
+                    
+        def merge(self,overlaps):
+            overlaps.append(self)
+            outWindow = self.getLowDen(overlaps)
+            outWindow.low = min(x.low for x in overlaps)
+            outWindow.high = max(x.high for x in overlaps)
+            return outWindow
+
+    # Define initial regions: clean = no overlaps.
+    cleanRegions = [window(0,1,d,k),window(1,1,d,k)]
+    
+    # list of Farey rationals
+    fareyLevels = rationalList(nmax, fareyMethod)
+    nTot = sum([len(x) for x in fareyLevels]) # How many rationals are considered
+                
+    # Loop over levels of Farey tree from 2 until nmax:
+    for newregions in fareyLevels:
+        # Check what to do with new window around this rational.
+        for x in newregions:
+            # Set up new window with zero overlaps so far
+            newWindow = window(x[0],x[1],d,k)
+            # Remake old region list to iterate over
+            regionsMod = cleanRegions
+            cleanRegions, overlapRegions = [], []
+            for y in regionsMod:
+                if not newWindow.overlap(y):
+                    cleanRegions.append(y)
+                else:
+                    overlapRegions.append(y)
+            if len(overlapRegions) == 0: # no overlaps
+                cleanRegions.append(newWindow)
+            else:
+                cleanRegions.append(newWindow.merge(overlapRegions))
+        cleanRegions.sort()
+        
+        # for a in cleanRegions:
+            # plot(a.r,n,'ro',a.low,n,'k<',
+                # a.high,n,'k>',ms=15./sqrt(a.den))    
+    # ylim(1,nmax+1)
+    # show()
+    
+    iotaL = [x.low  for x in cleanRegions]
+    iotaR = [x.high for x in cleanRegions]
+    rL = [iotaInverse(x.low)  for x in cleanRegions]
+    rR = [iotaInverse(x.high) for x in cleanRegions]
+    iota, gradp = stepFxn(iotaL,iotaR)
+    x = [8./7.*(1 - i)**0.5 for i in iota]
+    p = integStepFxn(x,gradp)
+    offset = -1*min(p)
+    p = [ii+offset for ii in p]
+    return x, p, gradp
+
+
+def deriv(y,x):
+    return np.gradient(y)/np.gradient(x)
+
+    
+def cylinderB(d,k,nmax,RKstep,R=1.,fareyMethod = 'maxDen'): # returns iota, Bz, Bth, Jth, Jz, x, p, gradp
+    
+    x, p, gradp = getP(d, k, nmax, fareyMethod = fareyMethod)
+    x.reverse()
+    p.reverse()
+    gradp.reverse()
+    
+    
+    def BzPrime(r, Bz, gradp):
+        BzP = -(R**2 + iota(r)**2 * r**2)**-1 * (gradp * R**2 / Bz + \
+            Bz * (r**2 * iota(r) * iotaPrime(r) + 2 * r * iota(r)**2) )
+        return BzP
+    
+    # set initial conditions
+    B0 = 1.2
+    Bz, r, i = [B0], [0], 0
+    BzNo, BzYes = [B0], [B0]
+    pFull, pPrimeFull = [p[0]],[0]    
+    
+    while r[-1] <= 1:
+        # do RK4 method for solving for Bz(r)
+        h = min([x[i+1]-x[i],RKstep])
+        rNow, BzNow = r[-1], Bz[-1]
+        BzNoNow, BzYesNow = BzNo[-1], BzYes[-1]
+        k1 = BzPrime(rNow,BzNow,gradp[i])
+        k2 = BzPrime(rNow+h/2,BzNow+h/2*k1,gradp[i])
+        k3 = BzPrime(rNow+h/2,BzNow+h/2*k2,gradp[i])
+        k4 = BzPrime(rNow+h,BzNow+h*k3,gradp[i])
+        
+        # find Bz(r) in instances of all gradp == 0, gradp == 1
+        # gradp == 0
+        k1no = BzPrime(rNow,BzNoNow,0)
+        k2no = BzPrime(rNow+h/2,BzNoNow+h/2*k1,0)
+        k3no = BzPrime(rNow+h/2,BzNoNow+h/2*k2,0)
+        k4no = BzPrime(rNow+h,BzNoNow+h*k3,0)
+        # gradp == 1
+        k1yes = BzPrime(rNow,BzYesNow,1)
+        k2yes = BzPrime(rNow+h/2,BzYesNow+h/2*k1,1)
+        k3yes = BzPrime(rNow+h/2,BzYesNow+h/2*k2,1)
+        k4yes = BzPrime(rNow+h,BzYesNow+h*k3,1)
+        
+        r.append(rNow+h)
+        Bz.append(BzNow+h/6*(k1+2*k2+2*k3+k4))
+        BzNo.append(BzNoNow+h/6*(k1no+2*k2no+2*k3no+k4no))
+        BzYes.append(BzYesNow+h/6*(k1yes+2*k2yes+2*k3yes+k4yes))
+        pFull.append(p[i])
+        pPrimeFull.append(gradp[i])
+        
+        # Update counter if we pass an index for x, p, gradp
+        if r[-1] >= x[i+1]:
+            try:
+                i = i+1
+                x[i+1]
+            except IndexError:
+                break
+    
+    r = np.array(r)
+    Bz = np.array(Bz)
+    Btheta = r*np.array(Bz)*iota(r)/R
+    Jtheta = -deriv(Bz,r)
+    with np.errstate(divide='ignore'):
+        Jz = 1/r*deriv(r*Btheta,r)
+    
+    return(r.tolist(), Bz.tolist(), Btheta.tolist(), 
+           Jtheta.tolist(), Jz.tolist(), x, p, gradp) #, pFull, pPrimeFull,
+           # BzNo, BzYes)
+
+def makePlots():           
+    # Make many plots of B, J, p for different parameters.
+    params = [(0.1, 2.2)] #, (0.05, 2.2), (0.1, 2.2)] #[('maxDen',200),('treeSteps',11),('treeSteps',12)]
+    # params.sort(reverse=False)
+    fareyLevel = 15
+    fig = figure(1) # subplot(gs[0,0:2])
+    ax = fig.add_subplot(111)
+    # axins = inset_axes(ax, 3,3, loc=3)
+
+    figure(2)
+    gs = gridspec.GridSpec(1, 2) #, height_ratios = [1,1]) # gridspec.GridSpec(3, 2, height_ratios = [1.5,1,1])
+    for param in params:
+        r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(param[0],param[1],10,0.00001,R=4.,fareyMethod='treeSteps')
+        magB = sqrt(np.array(Bz)**2+np.array(Btheta)**2).tolist()
+        figure(1)
+        ax.plot(x,np.array(p))
+        # axins.plot(x,np.array(p))
+        figure(2)
+        subplot(gs[0,0]) # subplot(gs[1,0])
+        plot(r,Bz,'.',markersize=1)
+        subplot(gs[0,0])
+        plot(r,Btheta,'.',markersize=1)
+        subplot(gs[0,1])
+        plot(r,Jtheta,'.',markersize=.1)
+        subplot(gs[0,1])
+        plot(r,Jz,'.',markersize=.1)
+        
+    figure(1) # subplot(gs[0,0:2])
+    sca(ax)
+    text(0.8, 0.5, r"$p(r)$", fontsize=30)
+    xlabel(r'r/a', fontsize=20)
+    legend(['R = '+str(g) for g in params])
+    [xmin, xmax, ymin, ymax] = axis()
+    plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
+    # sca(axins)
+    # plot([2/(1+math.sqrt(5)),2/(1+math.sqrt(5))],[ymin,ymax],'k--')
+    # axis([0.618,0.61808,0.,0.51])
+    # xticks([])
+    # yticks([])
+    # text(0.617965,.33445,r"55/89",color="blue")
+    # text(.618046, 0.3341,r"89/144",color="green")
+    # annotate(r"144/233",xy=(.618026,0.333781),xytext=(.61798,.3334),color="red",
+    #     arrowprops=dict(facecolor='red'))
+    figure(2)
+    subplot(gs[0,0])
+    text(0.1, 0.85, r"$B_z(r)$", fontsize=26)
+    legend([r'$(d, k)$ = '+str(g) for g in params],loc='best')
+    subplot(gs[0,0])
+    text(0.9, max(Btheta)*0.8, r"$B_\theta(r)$", fontsize=26)
+    xlabel(r'r/a',fontsize=20)
+    subplot(gs[0,1])
+    text(0.2, max(Jtheta)/1.3, r"$J_\theta(r)$", fontsize=26)
+    xlabel(r'r/a',fontsize=20)
+    subplot(gs[0,1])
+    text(0.1, -0.1, r"$J_z(r)$", fontsize=26)
+    legend([r'$(d, k)$ = '+str(g) for g in params])
+    show()
+
+
+def pressureAsymptotes():
+    #Plot saturation of p as Farey tree saturates
+    n = []
+    pressuresBigWindow = []
+    pressuresQuickDecay = []
+    pressuresSmallWindow = []
+
+    for i in range(10,101,10):
+        n.append(i)
+        pressuresBigWindow.append(max(getP(.25,2,i)[1]))
+        pressuresSmallWindow.append(max(getP(.1,2,i)[1]))
+        pressuresQuickDecay.append(max(getP(.25,3,i)[1]))
+
+    plot(n,pressuresBigWindow,'r',label='d = 0.25, k = 2')
+    plot(n,pressuresSmallWindow,'g',label='d = 0.1, k = 2')
+    plot(n,pressuresQuickDecay,'b',label='d = 0.25, k = 3')
+    legend()
+    xlabel('Farey tree level')
+    ylabel('Peak pressure')
+    show()
+
+# Show convergence to some max(p) with Farey ordering, maxDen ordering
+def rationalOrdering():
+    d = 0.15
+    k = 2
+    maxLevel = 15
+    nFarey, fareyMax, nDen, denMax = [], [], [], []
+    for nmax in range(1,maxLevel):
+        x, p, gradp, nTotFarey = getP(d, k, nmax, 'treeSteps')
+        fareyMax.append(max(p))
+        nFarey.append(nTotFarey)
+        x, p, gradp, nTotDen = getP(d, k, nmax, 'maxDen', nTotFarey)
+        denMax.append(max(p))
+        nDen.append(nTotDen)
+        print(nTotFarey, nTotDen)
+    plot(nFarey,fareyMax,'bx', nDen, denMax, 'rx')
+    xscale('log')
+    show()
+    
+def streamsBz():
+
+    R = 2
+
+    def BzPrime(r, Bz, gradp):
+        BzP = -(R**2 + iota(r)**2 * r**2)**-1 * (gradp * R**2 / Bz + \
+            Bz * (r**2 * iota(r) * iotaPrime(r) + 2 * r * iota(r)**2) )
+        return BzP
+    
+    def Sprime(r, S):
+        Sp = -(r**2 * iota(r) * iotaPrime(r) + 2*r*iota(r)**2)/(R**2 + r**2 * iota(r)**2) * S
+        return Sp
+        
+    def Fprime(r, S, F, gradp):
+        Fp = -R**2*gradp/((R**2 + iota(r)**2 * r**2)*S**2)/F
+        return Fp
+    
+    size = 15
+    r = np.linspace(0,1,size)
+    Bz = np.linspace(0,1,size)
+    S = Bz
+    F = Bz
+    Rad, BZgrid = np.meshgrid(r,Bz)
+    
+    BzPNo = BzPrime(Rad,BZgrid,0)
+    BzPYes = BzPrime(Rad,BZgrid,1)
+    dx = np.ones((size,size))
+    SP = Sprime(Rad, BZgrid)
+    FP = Fprime(Rad, BZgrid, BZgrid, 1)
+    FP0 = Fprime(Rad, BZgrid, BZgrid, 0)
+
+    subplot(3,1,1)
+    quiver(Rad,BZgrid,dx,BzPNo, color='k', headwidth=2.3, label=r'$\nabla p = 0$')
+    quiver(Rad,BZgrid,dx,BzPYes,color='r', headwidth=2.3, label=r'$\nabla p = 1$')
+    plot([0],[0],'k',[0],[0],'r')
+    leg = legend([r'$\nabla p = 0$',r'$\nabla p = 1$'],numpoints=1,fontsize=20)
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='r')
+    xlabel(r'$r$',fontsize=20)
+    ylabel(r'$B_z$',fontsize=20)
+    
+    subplot(3,1,2)
+    streamplot(Rad,BZgrid,dx,SP, color='g') # headwidth=2.3, label=r'$\nabla p = 0$')
+    subplot(3,1,3)
+    quiver(Rad,BZgrid,dx*300,FP,color='b', headwidth=2, label=r'$\nabla p = 1$')
+    quiver(Rad,BZgrid,dx*1,FP0,color='k', headwidth=2, label=r'$\nabla p = 1$')
+    
+    show()
+# streamsBz()
+    
+#makePlots()
+
+# Show "honing in" on golden mean as d increases towards critical value
+# 
+# for d in [0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966, (3-math.sqrt(5))/2]:
+    # r, Bz, Btheta, Jtheta, Jz, x, p, gradp = cylinderB(d,2,10,0.00001,fareyMethod='treeSteps')
+    # subplot(1,2,1)
+    # plot(x, [-1*i for i in gradp])
+    # xlabel('x')
+    # axis([0,1,-1.1,0.1])
+    # subplot(1,2,2)
+    # plot(x,np.asarray(p)/max(p))
+    # xlabel('x')
+# # axis([0,1,-0.01,0.2])
+# legend([0.3, 0.38, 0.381, 0.3819, 0.38196, 0.381966],loc='best')
+# show()
+
+# Shows how Bz is bound between gradP = 1 case and gradP = 0
+
+def plotBzSF(plots=False):
+    rad, Bz, Btheta, Jtheta, Jz, x, p, gradp, pFull, pPrimeFull, BzNo, BzYes = cylinderB(0.12,2, 10, 0.00001, 
+                    fareyMethod='treeSteps')
+
+    def smoothFunction(x):
+        R = 1.
+        integ = quad(lambda r:(r**2*iota(r)*iotaPrime(r)+2*r*iota(r)**2)/(R**2+r**2*iota(r)**2), 0., x)[0]
+        return math.exp(-1*float(integ))
+
+    smoothFxn = np.asarray([smoothFunction(a) for a in rad])
+    fractalFxn = Bz/smoothFxn
+
+
+    plot(rad,Bz,'b',label=r'$B_z(r)$')
+    plot(rad,smoothFxn,'g',label=r'$S(r)$')
+    plot(rad,fractalFxn,'r',label=r'$F(r)$')
+    leg=legend(fontsize=20,loc="best")
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='b')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='g')
+    tmp = leg.get_texts()[2]
+    setp(tmp, color='r')
+    xlabel(r'$r$',fontsize=25)
+    tick_params(axis='both', which='major', labelsize=20)
+    axis([0,1,0.41,1.09])
+    if plots:
+      show()
+    else: 
+        clf()
+    
+    
+    a = pPrimeFull/deriv(fractalFxn**2/2.,rad)
+    indices = []
+    for i in range(len(a)):
+        if abs(a[i]) < 2:
+            indices.append(i)
+    
+    
+    plot(np.asarray(rad)[indices],np.asarray(a)[indices],'r')
+    show()
+        
+    pInterp = interp1d(x, np.asarray(p)+(1-max(p)))
+    maxBz = max(Bz)
+    rad[-1] = 1.
+    plot(rad,fractalFxn/maxBz, 'r', x, np.asarray(p)+(1-max(p)),'k',rad,pInterp(rad)/fractalFxn*maxBz,'c')
+    xlabel(r'$r$',fontsize=20)
+    if plots:
+        show()
+    else:
+        clf()
+
+    Fprime = deriv(fractalFxn/maxBz,rad)
+    gradPInterp = interp1d(x,np.asarray(gradp))
+    plot(rad,-1*np.asarray(pPrimeFull),'k.',markersize=0.5,label=r"$p'(r)$")
+    # plot(rad,Fprime,'r.',markersize=1,label=r"$F'(r)$")
+    FprimeHighPts = [a for a in Fprime if a < -0.1]
+    rHighPts = [rad[a] for a in range(len(Fprime)) if Fprime[a] < -0.1]
+    plot(rHighPts,FprimeHighPts,'r.',markersize=1,label=r"Irrational points of $F'(r)$")
+    leg=legend(fontsize=20,loc="best",numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='k')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='r')
+    xlabel(r'$r$',fontsize=25)
+    tick_params(axis='both', which='major', labelsize=20)
+    if plots:
+        show()
+    else:
+        clf()
+    
+    plot(rad,Btheta,'b',label=r"$B_\theta(r)$")
+    plot(rad,Btheta/fractalFxn,'g',label=r"$S_\theta(r)$")
+    leg=legend(fontsize=20,loc="best",numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='b')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='g')
+    xlabel(r'$r$',fontsize=25)
+    tick_params(axis='both', which='major', labelsize=20)
+    if plots:
+        show()
+    else:
+        clf()
+    
+    rRatio, Jzratio, Jthetaratio = [], [], []
+    for i in range(len(Jz)):
+        if abs(Fprime[i]) >  0.1:
+            Jzratio.append(-1*Jz[i]/Fprime[i])
+            Jthetaratio.append(-1*Jtheta[i]/Fprime[i])
+            rRatio.append(rad[i])
+    subplot(1,2,1)
+    plot(rad, Jz, 'b.',label=r'$J_z(r)$',markersize=2)
+    plot(rRatio, Jzratio, 'k.',markersize=2, label=r"$J_z/F'(r)$")
+    xlabel(r'$r$',fontsize=25)
+    leg=legend(loc='best',numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='b')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='k')
+    tick_params(axis='both', which='major', labelsize=20)
+
+    subplot(1,2,2)
+    plot(rad, Jtheta, 'r.', label=r'$J_\theta(r)$',markersize=2)
+    plot(rRatio, Jthetaratio, 'g.', markersize=2, label=r"$J_\theta/F'(r)$")
+    tick_params(axis='both', which='major', labelsize=20)
+
+    xlabel(r'$r$',fontsize=25)
+    leg=legend(loc='best',numpoints=1)
+    tmp = leg.get_texts()[0]
+    setp(tmp, color='r')
+    tmp = leg.get_texts()[1]
+    setp(tmp, color='g')
+    if plots:
+        show()
+    else:
+        clf()
+
+# plotBzSF(True)
+
+makePlots()
+    
+# F = F[1:]
+# plot(rOn,np.asarray(BzOn)+0.02,'b.',markersize=1,label=r"$\nabla p = 1$")
+# plot(rOff,BzOff,'r.',markersize=1,label=r"$\nabla p = 0$")
+# plot(rF, F, 'g.',markersize=1,label='Fractal part')
+# legend()
+# show()
+
+                
+# subplot(2,1,1)
+# plot(r,Bz,'b',r,Btheta,'r')
+# plot(r,BzNo,'k--',r,BzYes,'g--')
+# subplot(2,1,2)
+# scaledBz, scaledBtheta, scaledJz, scaledJtheta = [], [], [], []
+# for i in range(len(Bz)):
+    # if pFull[i] == 0:
+        # scaledBz.append(0)
+        # scaledBtheta.append(0)
+    # else:
+        # scaledBz.append(Bz[i]/(pFull[i]))
+        # scaledBtheta.append(Btheta[i]/pFull[i])
+# plot(r,scaledBz,'b',r,scaledBtheta,'r')
+# plot(r,BzNo,'k--',r,BzYes,'g--')
+# show()
