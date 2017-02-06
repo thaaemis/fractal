@@ -3,12 +3,13 @@ from scipy.interpolate import interp1d
 from pylab import *
 from fractal import getP
 import pandas as pd
+import sys
 
-pExactFilename = 'highRes_pApprox.pkl'
+pExactFilename = 'pApprox_F13d0.1-k2.pkl' # 'highRes_pApprox.pkl'
 
-def getExactP(fareyLevel, save = False, filename = pExactFilename):
-    d, k = 0.1, 2.1
-    x, p, gradp = getP(d, k, nmax = fareyLevel, fareyMethod = 'treeSteps', getN = False)
+def getExactP(fareyLevel, save = False, method = 'treeSteps', filename = pExactFilename):
+    d, k = 0.1, 2.
+    x, p, gradp = getP(d, k, nmax = fareyLevel, fareyMethod = method, getN = False)
     pData = pd.DataFrame(columns=('x', 'p', 'gradp'))
     pData['x'] = x
     pData['p'] = p
@@ -16,7 +17,7 @@ def getExactP(fareyLevel, save = False, filename = pExactFilename):
     
     if save:
         
-        pData.to_pickle(filename)
+        pData.to_pickle('pApprox_F'+str(fareyLevel)+'d0.1-k2.pkl')
     
     return x, p, gradp
             
@@ -33,11 +34,11 @@ def retrieveP(filename = pExactFilename, plotAll = False):
     
     return x, p, gradp
     
-def retrieveDicts(low, high):
+def retrieveDicts(low, high, method = 'treeSteps'):
     x, p, gradp = {}, {}, {}
     interpFunctions = {}
     for i in range(low,high+1):
-        x[i], p[i], gradp[i] = getExactP(i)
+        x[i], p[i], gradp[i] = getExactP(i, method = method)
     return x, p, gradp, interpFunctions    
 
 def analyzeP():
@@ -71,12 +72,13 @@ def analyzeP():
     show()
     
 def saveManyP():
-    for i in range(13,19):
+    for i in range(15,18):
         print('getting ',i)
         getExactP(i, save=True)
         
-def measureConvergence():
-    x, p, gradp = retrieveP()
+def measureConvergence(filename = pExactFilename, plotColor = 'r'):
+# plot discretized samples of fractal grid
+    x, p, gradp = retrieveP(filename = filename)
     # need to shift x-points for interpolation
     xNew = np.asarray(x)
     xMax = np.max(x)
@@ -91,9 +93,10 @@ def measureConvergence():
     print(p[numPts-1])
     
     # look at dumb grid way
-    nVals = np.arange(10,5000,10)
+    nVals = np.logspace(1,4,50, base=10)
     integrals = []
     for n in nVals:
+        n = int(n)
         gridPts = np.arange(0.0,max(x),max(x)/float(n))
         # get Riemann integral
         riemannInt = 0
@@ -103,18 +106,41 @@ def measureConvergence():
             color = 'r' if n < 20 else 'b'
             # plot(point, gradpExact(point),'o',markersize=np.log(n), color=color)
         integrals.append(riemannInt)
-    plot(nVals,integrals,'ro')
-    plot([0,1000],[p[numPts-1],p[numPts-1]],'g--')
+    plot(nVals,integrals,'o',color=plotColor,label=filename)
+    plot([0,1000],[p[numPts-1],p[numPts-1]],'--',color=plotColor)
     
-    # get fractal grid approximations
+# plot methods from treeSteps and maxDen
+
+def plotTreeDen():
+    # get fractal grid approximations for 'treeSteps'
     low, high = 1, 10
     gridSize, fractPs = [],[]
     xDict, pDict, gradpDict, interpFunctions = retrieveDicts(low, high)
-    for i in range(1,11):
+    for i in range(low, high + 1):
         gridSize.append(len(pDict[i]))
         fractPs.append(pDict[i][-1])
-    plot(gridSize,fractPs,'b*')
+    plot(gridSize,fractPs,'b*', label='Farey tree steps')
+    
+    # get fractal grid approximations for 'maxDen'
+    low, high = 10, 100
+    gridSize, maxDenFractPs = [], []
+    xDict, pDict, gradpDict, interpFunctions = retrieveDicts(low, high, method='maxDen')
+    for i in range(low, high + 1):
+        gridSize.append(len(pDict[i]))
+        maxDenFractPs.append(pDict[i][-1])
+    plot(gridSize, maxDenFractPs, 'go', label='Maxiumum denominator')
+    
+    
     xscale('log')
-    show()
-measureConvergence()
+
+color = ['k', 'm', 'r', 'c']    
+for i,x in enumerate(range(11,15)):
+    filename = 'pApprox_F'+str(x)+'d0.1-k2.pkl'
+    measureConvergence(filename, plotColor = color[i])
+plotTreeDen()
+legend(loc='best')
+show()
+
 # saveManyP()
+
+
